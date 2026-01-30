@@ -125,6 +125,10 @@ export class JobsService {
     return this.http.post<{ status: string; deleted: number }>(`${this.baseUrl}/jobs/clear`, {});
   }
 
+  deleteJob(jobId: string) {
+    return this.http.delete<{ status: string }>(`${this.baseUrl}/jobs/${jobId}`);
+  }
+
   uploadFolder(jobId: string, setName: 'A' | 'B', files: File[], stripSegments = 1) {
     const form = new FormData();
     files.forEach(file => {

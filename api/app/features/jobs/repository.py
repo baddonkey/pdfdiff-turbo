@@ -21,6 +21,9 @@ class JobRepository:
     async def delete_for_user(self, user_id: str) -> None:
         await self._session.execute(delete(Job).where(Job.user_id == user_id))
 
+    async def delete_for_job(self, job_id: str, user_id: str) -> None:
+        await self._session.execute(delete(Job).where(Job.id == job_id, Job.user_id == user_id))
+
     async def get_by_id(self, job_id: str) -> Optional[Job]:
         result = await self._session.execute(select(Job).where(Job.id == job_id))
         return result.scalar_one_or_none()

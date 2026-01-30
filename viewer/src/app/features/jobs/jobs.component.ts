@@ -16,14 +16,16 @@ import { TopbarActionsService } from '../../core/topbar-actions.service';
         <div style="display:flex; gap: 8px;">
           <button
             class="btn secondary"
-            [style.background]="activeTab === 'dropzone' ? 'var(--theme-primary)' : 'var(--theme-secondary)'"
-            [style.color]="activeTab === 'dropzone' ? 'var(--theme-primary-contrast)' : 'var(--theme-primary)'"
+            [style.background]="activeTab === 'dropzone' ? '#f8fafc' : 'var(--theme-secondary)'"
+            [style.color]="activeTab === 'dropzone' ? '#0f172a' : 'var(--theme-primary)'"
+            [style.border]="activeTab === 'dropzone' ? '1px solid #cbd5f5' : '1px solid var(--theme-primary)'"
             (click)="setTab('dropzone')"
           >Dropzone</button>
           <button
             class="btn secondary"
-            [style.background]="activeTab === 'jobs' ? 'var(--theme-primary)' : 'var(--theme-secondary)'"
-            [style.color]="activeTab === 'jobs' ? 'var(--theme-primary-contrast)' : 'var(--theme-primary)'"
+            [style.background]="activeTab === 'jobs' ? '#f8fafc' : 'var(--theme-secondary)'"
+            [style.color]="activeTab === 'jobs' ? '#0f172a' : 'var(--theme-primary)'"
+            [style.border]="activeTab === 'jobs' ? '1px solid #cbd5f5' : '1px solid var(--theme-primary)'"
             (click)="setTab('jobs')"
           >Jobs</button>
         </div>
@@ -75,11 +77,11 @@ import { TopbarActionsService } from '../../core/topbar-actions.service';
                 </div>
               </div>
               <div *ngIf="getRecentProgress(job) as progress" style="margin-top: 10px;">
-                <div style="display:flex; justify-content: space-between; align-items:center; font-size: 12px; color:#475569;">
-                  <strong>Progress</strong>
+                <div style="display:flex; align-items:center; font-size: 12px; color:#475569;">
+                  <strong style="flex: 1;">Progress</strong>
                   <span>{{ progress.percent }}%</span>
                 </div>
-                <div style="height: 8px; background:#e2e8f0; border-radius:999px; overflow:hidden; margin: 6px 0 8px;">
+                <div style="height: 8px; width: 100%; background:#e2e8f0; border-radius:999px; overflow:hidden; margin: 6px 0 8px;">
                   <div [style.width.%]="progress.percent" style="height: 100%; background: var(--theme-primary);"></div>
                 </div>
                 <div style="display:flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color:#475569;">
@@ -96,7 +98,7 @@ import { TopbarActionsService } from '../../core/topbar-actions.service';
         </div>
       </ng-container>
 
-      <div *ngIf="activeTab === 'jobs'" class="card">
+      <div *ngIf="activeTab === 'jobs'" class="card" style="grid-column: 1 / -1; max-width: 860px; margin: 0 auto;">
         <div style="display:flex; justify-content: space-between; align-items:center;">
           <h2>Your Jobs</h2>
           <div style="display:flex; gap: 8px;">
@@ -105,23 +107,43 @@ import { TopbarActionsService } from '../../core/topbar-actions.service';
           </div>
         </div>
         <div *ngIf="jobList.length === 0" style="margin-top: 12px;">No jobs yet.</div>
-        <div *ngFor="let job of jobList" class="card" style="margin-top: 12px;">
-          <div style="display:flex; justify-content: space-between; align-items:center;">
+        <div
+          *ngFor="let job of jobList"
+          class="card"
+          style="margin-top: 10px; position: relative; cursor: pointer;"
+          [style.border]="job.id === jobId ? '2px solid var(--theme-primary)' : '1px solid transparent'"
+          (click)="selectJob(job.id)"
+        >
+          <div style="display:flex; justify-content: space-between; align-items:flex-start;">
             <div>
-                  <strong>{{ job.display_id || job.id }}</strong>
-                  <div style="font-size: 12px; color:#64748b; margin-top: 4px;">
-                    Set A: {{ job.set_a_label || 'setA' }} · Set B: {{ job.set_b_label || 'setB' }}
-                  </div>
-                  <div style="font-size: 12px; color:#94a3b8; margin-top: 4px;">
-                    Created: {{ formatDate(job.created_at) }}
-                  </div>
-              <div>
-                <span class="badge" [ngClass]="statusBadge(job.status)">{{ job.status }}</span>
+              <strong>{{ job.display_id || job.id }}</strong>
+              <div style="font-size: 12px; color:#64748b; margin-top: 4px;">
+                Set A: {{ job.set_a_label || 'setA' }} · Set B: {{ job.set_b_label || 'setB' }}
+              </div>
+              <div style="font-size: 12px; color:#94a3b8; margin-top: 4px;">
+                Created: {{ formatDate(job.created_at) }}
+              </div>
+              <div *ngIf="job.progress as progress" style="margin-top: 10px; width: 100%;">
+                <div style="display:flex; justify-content: space-between; align-items:center; font-size: 12px; color:#475569;">
+                  <strong>Progress</strong>
+                  <span>{{ progress.percent }}%</span>
+                </div>
+                <div style="height: 8px; width: 100%; background:#e2e8f0; border-radius:999px; overflow:hidden; margin: 6px 0 8px;">
+                  <div [style.width.%]="progress.percent" style="height: 100%; background: var(--theme-primary);"></div>
+                </div>
+                <div style="display:flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color:#475569;">
+                  <span>Done: {{ progress.completed }}</span>
+                  <span>Running: {{ progress.running }}</span>
+                  <span>Pending: {{ progress.pending }}</span>
+                  <span>Missing: {{ progress.missing }}</span>
+                  <span>Incompatible: {{ progress.incompatible }}</span>
+                  <span>Failed: {{ progress.failed }}</span>
+                </div>
               </div>
             </div>
-            <div style="display:flex; gap: 8px;">
-              <button class="btn secondary" (click)="openJobDetails(job.id)">Job Details</button>
-            </div>
+          </div>
+          <div style="position: absolute; top: 12px; right: 12px;">
+            <button class="btn secondary" (click)="$event.stopPropagation(); openJobDetails(job.id)">Job Details</button>
           </div>
         </div>
       </div>
@@ -582,25 +604,23 @@ export class JobsComponent implements OnInit, AfterViewInit, OnDestroy {
     });
   }
 
-  startComparison(jobId: string) {
+  clearJobSelection() {
+    if (!this.jobId) return;
     this.message = '';
     this.error = '';
-    this.jobsService.startJob(jobId).subscribe({
+    const targetId = this.jobId;
+    this.jobsService.deleteJob(targetId).subscribe({
       next: () => {
-        this.message = 'Comparison started.';
-        this.selectJob(jobId);
+        this.jobId = '';
+        this.files = [];
+        this.jobProgress = null;
+        this.message = 'Job removed.';
         this.loadJobs();
       },
       error: (err: any) => {
-        this.error = this.formatError(err, 'Failed to start comparison.');
+        this.error = this.formatError(err, 'Failed to remove job.');
       }
     });
-  }
-
-  clearJobSelection() {
-    this.jobId = '';
-    this.files = [];
-    this.jobProgress = null;
   }
 
   clearJobsList() {

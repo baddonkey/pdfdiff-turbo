@@ -218,6 +218,19 @@ async def clear_jobs(
     return await service.clear_jobs(str(user.id))
 
 
+@router.delete("/{job_id}")
+async def delete_job(
+    job_id: str,
+    service: JobService = Depends(get_job_service),
+    repo=Depends(get_job_repository),
+    user: User = Depends(get_current_user),
+) -> dict:
+    job = await repo.get_by_id_and_user(job_id, str(user.id))
+    if not job:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
+    return await service.delete_job(job)
+
+
 @router.post("/clear")
 async def clear_jobs_post(
     service: JobService = Depends(get_job_service),

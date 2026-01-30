@@ -51,6 +51,7 @@ export class AuthComponent {
     this.auth.login(this.loginEmail, this.loginPassword).subscribe({
       next: tokens => {
         this.auth.saveTokens(tokens);
+        this.auth.setUserEmail(this.loginEmail);
         this.router.navigate(['/jobs']);
       },
       error: err => {
