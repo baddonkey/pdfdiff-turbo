@@ -21,6 +21,13 @@ import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
           <h2 style="margin:0;" *ngIf="currentFile">{{ currentFile.relative_path }}</h2>
         </div>
         <div style="display:flex; align-items:center; gap: 8px;">
+          <button class="btn secondary" [class.magnifier-active]="magnifierEnabled" (click)="toggleMagnifier()" style="display: flex; align-items: center; gap: 6px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8"></circle>
+              <path d="m21 21-4.35-4.35"></path>
+            </svg>
+            Magnifier
+          </button>
           <button class="btn secondary" (click)="prevDiff()">Prev Diff</button>
           <button class="btn" (click)="nextDiff()">Next Diff</button>
         </div>
@@ -70,15 +77,6 @@ import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
         </div>
 
         <div style="display: flex; flex-direction: column; flex: 1; min-height: 0; position: relative; overflow: hidden;">
-          <div style="position: absolute; top: -50px; left: 0; z-index: 100;">
-            <button class="btn secondary" [class.magnifier-active]="magnifierEnabled" (click)="toggleMagnifier()" style="display: flex; align-items: center; gap: 6px;">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="11" cy="11" r="8"></circle>
-                <path d="m21 21-4.35-4.35"></path>
-              </svg>
-              Magnifier
-            </button>
-          </div>
           <div class="viewer-grid">
             <div
               class="canvas-wrap"
