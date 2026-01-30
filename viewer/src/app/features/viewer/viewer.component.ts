@@ -187,14 +187,18 @@ export class ViewerComponent implements OnInit, OnDestroy {
       const fileChanged = nextFileId !== this.fileId;
       this.jobId = nextJobId;
       this.fileId = nextFileId;
-      if (jobChanged) {
-        this.loadJob();
-        this.loadJobFiles();
-        this.subscribeJobFiles();
-      }
-      if (fileChanged) {
-        this.loadFilePages();
-      }
+      
+      // Defer to avoid ExpressionChangedAfterItHasBeenCheckedError
+      setTimeout(() => {
+        if (jobChanged) {
+          this.loadJob();
+          this.loadJobFiles();
+          this.subscribeJobFiles();
+        }
+        if (fileChanged) {
+          this.loadFilePages();
+        }
+      }, 0);
     });
   }
 
@@ -215,12 +219,11 @@ export class ViewerComponent implements OnInit, OnDestroy {
     this.jobs.getJob(this.jobId).subscribe({
       next: job => {
         this.job = job;
-        this.topbar.setJobTitle(job.display_id);
-        this.cdr.detectChanges();
+        setTimeout(() => this.topbar.setJobTitle(job.display_id), 0);
       },
       error: () => {
         this.job = null;
-        this.topbar.setJobTitle(null);
+        setTimeout(() => this.topbar.setJobTitle(null), 0);
       }
     });
   }
