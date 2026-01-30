@@ -223,6 +223,15 @@ class JobService:
         await self._session.commit()
         return {"status": "ok", "deleted": len(jobs)}
 
+    async def delete_job(self, job: Job) -> dict:
+        await self._page_repo.delete_for_job(job.id)
+        await self._file_repo.delete_for_job(job.id)
+        job_dir = Path(settings.data_dir) / "jobs" / str(job.id)
+        shutil.rmtree(job_dir, ignore_errors=True)
+        await self._job_repo.delete_for_job(str(job.id), str(job.user_id))
+        await self._session.commit()
+        return {"status": "ok"}
+
     def list_samples(self) -> list[dict]:
         samples_dir = Path(settings.data_dir) / "samples"
         if not samples_dir.exists():

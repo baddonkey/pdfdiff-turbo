@@ -34,7 +34,7 @@ import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
             <strong>Files</strong>
             <span style="font-size: 12px; color:#64748b;">{{ files.length }}</span>
           </div>
-          <table style="width:100%; border-collapse: collapse; font-size: 12px;">
+          <table style="width:100%; border-collapse: collapse; font-size: 12px; margin: 0 auto;">
             <thead>
               <tr style="text-align:left; color:#64748b;">
                 <th style="padding: 6px 4px;">File</th>
