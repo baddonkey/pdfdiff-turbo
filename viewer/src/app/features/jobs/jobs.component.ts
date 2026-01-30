@@ -1,70 +1,86 @@
-import { Component, OnInit } from '@angular/core';
+import { AfterViewInit, Component, OnDestroy, OnInit, TemplateRef, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { JobsService, JobFile, JobSummary, SampleSet } from '../../core/jobs.service';
+import { Subscription } from 'rxjs';
+import { JobsService, JobFile, JobSummary } from '../../core/jobs.service';
+import { TopbarActionsService } from '../../core/topbar-actions.service';
 
 @Component({
   selector: 'app-jobs',
   standalone: true,
   imports: [CommonModule, FormsModule, RouterLink],
   template: `
-    <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 16px;">
-      <div class="card">
-      <h2>Upload</h2>
-      <div
-        class="card"
-        style="height: 220px; border: 2px dashed #cbd5f5; background: #f8fafc; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center;"
-        [style.borderColor]="dragActive ? '#2563eb' : '#cbd5f5'"
-        (dragover)="onDragOver($event)"
-        (dragleave)="onDragLeave($event)"
-        (drop)="onDrop($event)"
-      >
-        <strong>Drop files or folders here</strong>
-        <div style="font-size: 13px; color:#475569; margin-top: 6px; max-width: 360px;">
-          Single zip (two top-level folders), two folders, or one folder containing two subfolders.
+    <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 16px; align-items: start;">
+      <ng-template #topbarActions>
+        <div style="display:flex; gap: 8px;">
+          <button
+            class="btn secondary"
+            [style.background]="activeTab === 'dropzone' ? '#2563eb' : '#e2e8f0'"
+            [style.color]="activeTab === 'dropzone' ? '#fff' : '#0f172a'"
+            (click)="setTab('dropzone')"
+          >Dropzone</button>
+          <button
+            class="btn secondary"
+            [style.background]="activeTab === 'jobs' ? '#2563eb' : '#e2e8f0'"
+            [style.color]="activeTab === 'jobs' ? '#fff' : '#0f172a'"
+            (click)="setTab('jobs')"
+          >Jobs</button>
         </div>
-        <div style="margin-top: 12px; display:flex; gap: 8px; align-items:center;">
-          <button class="btn" (click)="startDropzone()" [disabled]="uploading">Start</button>
-        </div>
-      </div>
+      </ng-template>
+      <ng-container *ngIf="activeTab === 'dropzone'">
+        <div style="grid-column: 1 / -1; display:flex; flex-direction:column; gap: 16px;">
+          <div
+            class="card"
+            style="padding: 0; min-height: 260px; width: 100%; max-width: 760px; margin: 0 auto; border: 2px dashed #cbd5f5; background: #f8fafc; display:flex; flex-direction:column; text-align:center;"
+            [style.borderColor]="dragActive ? '#2563eb' : '#cbd5f5'"
+            (dragover)="onDragOver($event)"
+            (dragleave)="onDragLeave($event)"
+            (drop)="onDrop($event)"
+          >
+            <div style="flex: 1; display:flex; flex-direction:column; justify-content:center; align-items:center; padding: 12px 16px 8px;">
+              <strong>Drop files or folders here</strong>
+              <div style="font-size: 13px; color:#475569; margin-top: 6px; max-width: 360px;">
+                Single zip (two top-level folders), two folders, or one folder containing two subfolders.
+              </div>
+              <div style="margin-top: 12px; display:flex; gap: 8px; align-items:center;">
+                <button class="btn" (click)="startDropzone()" [disabled]="uploading">Start</button>
+              </div>
+            </div>
+            <div style="padding: 0 16px 12px; text-align:center; min-height: 22px;">
+              <span *ngIf="uploading">Uploading...</span>
+              <span *ngIf="message" style="color:#166534;">{{ message }}</span>
+              <span *ngIf="error" style="color:#b91c1c;">{{ error }}</span>
+            </div>
+          </div>
 
-      <div class="grid" style="grid-template-columns: 1fr; gap: 16px; margin-top: 16px;">
-        <div>
-          <label>Set A folder</label>
-          <input class="input" type="file" webkitdirectory (change)="onFolderChange($event, 'A')" />
+          <div class="card" style="padding: 16px; margin: 0 auto; max-width: 760px; width: 100%;">
+            <div style="display:flex; justify-content: space-between; align-items:center;">
+              <strong>Recent Jobs</strong>
+            </div>
+            <div *ngIf="recentJobs.length === 0" style="margin-top: 8px; color:#64748b;">No recent jobs.</div>
+            <div *ngFor="let job of recentJobs" class="card" style="margin-top: 10px;">
+              <div style="display:flex; justify-content: space-between; align-items:center;">
+                <div>
+                  <strong>{{ job.id }}</strong>
+                  <div>
+                    <span class="badge" [ngClass]="statusBadge(job.status)">{{ job.status }}</span>
+                  </div>
+                </div>
+                <div style="display:flex; gap: 8px;">
+                  <button class="btn secondary" (click)="selectJob(job.id)">View Files</button>
+                  <button class="btn" (click)="startComparison(job.id)">Start Comparison</button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-        <div>
-          <label>Set B folder</label>
-          <input class="input" type="file" webkitdirectory (change)="onFolderChange($event, 'B')" />
-        </div>
-        <div>
-          <label>Zip with two top-level folders</label>
-          <input class="input" type="file" accept=".zip" (change)="onZipChange($event)" />
-        </div>
-        <div>
-          <label>Sample set</label>
-          <select class="input" [(ngModel)]="selectedSample">
-            <option value="">Select sample…</option>
-            <option *ngFor="let sample of samples" [value]="sample.name">{{ sample.name }}</option>
-          </select>
-        </div>
-        <div style="display:flex; gap: 12px; align-items:center; flex-wrap: wrap;">
-          <button class="btn" (click)="startUpload()" [disabled]="uploading || filesA.length === 0 || filesB.length === 0">Upload & Start</button>
-          <button class="btn secondary" (click)="startZipUpload()" [disabled]="uploading || !zipFile">Upload Zip & Start</button>
-          <button class="btn secondary" (click)="startSampleUpload()" [disabled]="uploading || !selectedSample">Use Sample & Start</button>
-          <span *ngIf="uploading">Uploading...</span>
-          <span *ngIf="message" style="color:#166534;">{{ message }}</span>
-          <span *ngIf="error" style="color:#b91c1c;">{{ error }}</span>
-        </div>
-      </div>
-      </div>
+      </ng-container>
 
-      <div class="card">
+      <div *ngIf="activeTab === 'jobs'" class="card">
         <div style="display:flex; justify-content: space-between; align-items:center;">
           <h2>Your Jobs</h2>
           <div style="display:flex; gap: 8px;">
-            <button class="btn secondary" (click)="loadJobs()">Refresh</button>
             <button class="btn secondary" (click)="clearJobsList()">Clear Jobs</button>
             <button class="btn secondary" (click)="clearJobSelection()">Clear Job</button>
           </div>
@@ -87,7 +103,7 @@ import { JobsService, JobFile, JobSummary, SampleSet } from '../../core/jobs.ser
       </div>
     </div>
 
-    <div class="card" style="margin-top:16px;">
+    <div *ngIf="activeTab === 'jobs'" class="card" style="margin-top:16px;">
       <h2>Job Files</h2>
       <div *ngIf="jobProgress" style="margin-bottom: 12px;">
         <div style="display:flex; justify-content: space-between; align-items:center;">
@@ -132,7 +148,13 @@ import { JobsService, JobFile, JobSummary, SampleSet } from '../../core/jobs.ser
     </div>
   `
 })
-export class JobsComponent implements OnInit {
+export class JobsComponent implements OnInit, AfterViewInit, OnDestroy {
+  @ViewChild('topbarActions', { static: true }) topbarActionsTpl!: TemplateRef<any>;
+  activeTab: 'dropzone' | 'jobs' = 'dropzone';
+  private jobsSub?: Subscription;
+  get recentJobs() {
+    return this.jobList.slice(0, 5);
+  }
   private dropFilesA: { file: File; relPath: string }[] = [];
   private dropFilesB: { file: File; relPath: string }[] = [];
   jobId = '';
@@ -141,8 +163,6 @@ export class JobsComponent implements OnInit {
   filesA: File[] = [];
   filesB: File[] = [];
   zipFile: File | null = null;
-  samples: SampleSet[] = [];
-  selectedSample = '';
   dragActive = false;
   uploadStripSegments = 1;
   uploading = false;
@@ -150,29 +170,28 @@ export class JobsComponent implements OnInit {
   error = '';
   jobProgress: import('../../core/jobs.service').JobProgress | null = null;
 
-  constructor(private jobsService: JobsService) {}
+  constructor(private jobsService: JobsService, private topbar: TopbarActionsService) {}
 
   ngOnInit() {
     this.loadJobs();
-    this.loadSamples();
+    this.jobsSub = this.jobsService.watchJobs().subscribe({
+      next: jobs => {
+        this.jobList = jobs;
+      }
+    });
   }
 
-  onFolderChange(event: Event, setName: 'A' | 'B') {
-    const input = event.target as HTMLInputElement;
-    const list = input.files ? Array.from(input.files) : [];
-    if (setName === 'A') {
-      this.filesA = list;
-    } else {
-      this.filesB = list;
-    }
-    this.dropFilesA = [];
-    this.dropFilesB = [];
+  setTab(tab: 'dropzone' | 'jobs') {
+    this.activeTab = tab;
   }
 
-  onZipChange(event: Event) {
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.[0] || null;
-    this.zipFile = file;
+  ngAfterViewInit() {
+    this.topbar.setActions(this.topbarActionsTpl);
+  }
+
+  ngOnDestroy() {
+    this.jobsSub?.unsubscribe();
+    this.topbar.setActions(null);
   }
 
   startUpload() {
@@ -267,11 +286,7 @@ export class JobsComponent implements OnInit {
       this.startUpload();
       return;
     }
-    if (this.selectedSample) {
-      this.startSampleUpload();
-      return;
-    }
-    this.error = 'Drop files or select a sample first.';
+    this.error = 'Drop files or folders first.';
   }
 
   onDragOver(event: DragEvent) {
@@ -424,41 +439,6 @@ export class JobsComponent implements OnInit {
     return [];
   }
 
-  startSampleUpload() {
-    if (!this.selectedSample) return;
-    this.message = '';
-    this.error = '';
-    this.uploading = true;
-    this.jobsService.createJob().subscribe({
-      next: (job: { id: string }) => {
-        this.jobId = job.id;
-        this.jobsService.useSample(job.id, this.selectedSample).subscribe({
-          next: () => {
-            this.jobsService.startJob(job.id).subscribe({
-              next: () => {
-                this.uploading = false;
-                this.message = 'Sample loaded. Job started.';
-                this.loadFiles();
-              },
-              error: (err: any) => {
-                this.uploading = false;
-                this.error = this.formatError(err, 'Failed to start job.');
-              }
-            });
-          },
-          error: (err: any) => {
-            this.uploading = false;
-            this.error = this.formatError(err, 'Failed to load sample.');
-          }
-        });
-      },
-      error: (err: any) => {
-        this.uploading = false;
-        this.error = this.formatError(err, 'Failed to create job.');
-      }
-    });
-  }
-
   private formatError(err: any, fallback: string) {
     const detail = err?.error?.detail;
     if (!detail) return fallback;
@@ -477,17 +457,6 @@ export class JobsComponent implements OnInit {
 
   loadJobs() {
     this.jobsService.listJobs().subscribe((jobs: JobSummary[]) => (this.jobList = jobs));
-  }
-
-  loadSamples() {
-    this.jobsService.listSamples().subscribe({
-      next: samples => {
-        this.samples = samples;
-      },
-      error: () => {
-        this.samples = [];
-      }
-    });
   }
 
   selectJob(jobId: string) {

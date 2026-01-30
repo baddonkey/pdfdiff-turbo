@@ -2,12 +2,17 @@ from pathlib import Path
 
 from typing import Iterable
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile, status
+import asyncio
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile, WebSocket, WebSocketDisconnect, status
 from fastapi.responses import FileResponse
+from jose import JWTError
 
 from app.core.config import settings
-from app.features.auth.deps import get_current_user
+from app.features.auth.deps import get_current_user, get_user_repository
 from app.features.auth.models import User
+from app.features.auth.security import decode_token
+from app.features.auth.repository import UserRepository
 from app.features.jobs.deps import get_job_service, get_job_repository, get_job_file_repository
 from app.features.jobs.schemas import (
     JobCreatedMessage,
@@ -20,6 +25,47 @@ from app.features.jobs.schemas import (
 from app.features.jobs.service import JobService
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
+
+
+@router.websocket("/ws")
+async def jobs_ws(
+    websocket: WebSocket,
+    token: str | None = Query(default=None),
+    service: JobService = Depends(get_job_service),
+    user_repo: UserRepository = Depends(get_user_repository),
+) -> None:
+    if not token:
+        await websocket.close(code=1008)
+        return
+    try:
+        payload = decode_token(token)
+    except JWTError:
+        await websocket.close(code=1008)
+        return
+    if payload.get("type") != "access":
+        await websocket.close(code=1008)
+        return
+    user_id = payload.get("sub")
+    if not user_id:
+        await websocket.close(code=1008)
+        return
+    user = await user_repo.get_by_id(user_id)
+    if not user or not user.is_active:
+        await websocket.close(code=1008)
+        return
+
+    await websocket.accept()
+    last_payload: list[dict] | None = None
+    try:
+        while True:
+            jobs = await service.list_jobs(user_id)
+            payload = [job.dict() for job in jobs]
+            if payload != last_payload:
+                await websocket.send_json(payload)
+                last_payload = payload
+            await asyncio.sleep(2)
+    except WebSocketDisconnect:
+        return
 
 
 @router.options("")

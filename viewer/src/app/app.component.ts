@@ -2,6 +2,7 @@ import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink, RouterOutlet } from '@angular/router';
 import { AuthService } from './core/auth.service';
+import { TopbarActionsService } from './core/topbar-actions.service';
 
 @Component({
   selector: 'app-root',
@@ -10,8 +11,11 @@ import { AuthService } from './core/auth.service';
   template: `
     <div class="app-shell">
       <header class="topbar">
-        <div>
+        <div style="display:flex; align-items:center; gap: 12px;">
           <strong>PDFDiff Viewer</strong>
+          <ng-container *ngIf="topbar.actions$ | async as actions">
+            <ng-container *ngTemplateOutlet="actions"></ng-container>
+          </ng-container>
         </div>
         <div>
           <a *ngIf="!(auth.isAuthenticated())" routerLink="/auth">Sign in</a>
@@ -25,5 +29,5 @@ import { AuthService } from './core/auth.service';
   `
 })
 export class AppComponent {
-  constructor(public auth: AuthService) {}
+  constructor(public auth: AuthService, public topbar: TopbarActionsService) {}
 }
