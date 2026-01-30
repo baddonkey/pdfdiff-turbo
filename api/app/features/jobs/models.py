@@ -34,6 +34,7 @@ class Job(Base):
     status: Mapped[JobStatus] = mapped_column(Enum(JobStatus), default=JobStatus.created, nullable=False)
     set_a_label: Mapped[str | None] = mapped_column(String(255), nullable=True)
     set_b_label: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    has_diffs: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
 
 
@@ -47,6 +48,7 @@ class JobFile(Base):
     set_b_path: Mapped[str | None] = mapped_column(String(2048), nullable=True)
     missing_in_set_a: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     missing_in_set_b: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    has_diffs: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
 
 

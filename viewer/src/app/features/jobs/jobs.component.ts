@@ -1,7 +1,7 @@
 import { AfterViewInit, Component, OnDestroy, OnInit, TemplateRef, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { JobsService, JobFile, JobSummary } from '../../core/jobs.service';
 import { TopbarActionsService } from '../../core/topbar-actions.service';
@@ -207,7 +207,7 @@ export class JobsComponent implements OnInit, AfterViewInit, OnDestroy {
   jobProgress: import('../../core/jobs.service').JobProgress | null = null;
   recentProgress: Record<string, import('../../core/jobs.service').JobProgress> = {};
 
-  constructor(private jobsService: JobsService, private topbar: TopbarActionsService) {}
+  constructor(private jobsService: JobsService, private topbar: TopbarActionsService, private router: Router) {}
 
   ngOnInit() {
     this.loadJobs();
@@ -348,12 +348,22 @@ export class JobsComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private async handleDrop(event: DragEvent) {
-    const items = event.dataTransfer?.items;
-    const dropped = items ? await this.readDroppedItems(items) : [];
-    const files = dropped.length ? dropped : Array.from(event.dataTransfer?.files || []).map(file => ({
+    const rawFiles = Array.from(event.dataTransfer?.files || []);
+    const fileEntries = rawFiles.map(file => ({
       file,
-      relPath: file.name
+      relPath: (file as any).webkitRelativePath || file.name
     }));
+    const hasRelPaths = fileEntries.some(item => item.relPath.includes('/'));
+    const items = event.dataTransfer?.items;
+    const dropped = !hasRelPaths && items ? await this.readDroppedItems(items) : [];
+    const files = (hasRelPaths
+      ? fileEntries
+      : dropped.length
+        ? dropped
+        : fileEntries).map(item => ({
+          file: item.file,
+          relPath: item.relPath.replace(/\\/g, '/')
+        }));
 
     if (files.length === 0) {
       this.error = 'No files detected in drop.';
@@ -432,7 +442,7 @@ export class JobsComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private stripPath(path: string, segments: number) {
-    const parts = path.split('/');
+    const parts = path.replace(/\\/g, '/').split('/');
     return parts.slice(segments).join('/') || parts[parts.length - 1];
   }
 
@@ -539,8 +549,22 @@ export class JobsComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   openJobDetails(jobId: string) {
-    this.setTab('jobs');
-    this.selectJob(jobId);
+    this.jobsService.listFiles(jobId).subscribe({
+      next: files => {
+        if (files.length > 0) {
+          this.router.navigate(['/jobs', jobId, 'files', files[0].id]);
+        } else {
+          this.setTab('jobs');
+          this.selectJob(jobId);
+          this.message = 'No files available for this job yet.';
+        }
+      },
+      error: () => {
+        this.setTab('jobs');
+        this.selectJob(jobId);
+        this.error = 'Failed to load job files.';
+      }
+    });
   }
 
   loadProgress() {

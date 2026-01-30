@@ -7,6 +7,9 @@ export interface JobFile {
   relative_path: string;
   missing_in_set_a: boolean;
   missing_in_set_b: boolean;
+  has_diffs?: boolean;
+  created_at?: string;
+  status?: string;
 }
 
 export interface JobSummary {
@@ -164,6 +167,54 @@ export class JobsService {
 
   listFiles(jobId: string) {
     return this.http.get<JobFile[]>(`${this.baseUrl}/jobs/${jobId}/files`);
+  }
+
+  watchJobFiles(jobId: string): Observable<JobFile[]> {
+    return new Observable<JobFile[]>(subscriber => {
+      let ws: WebSocket | null = null;
+      let closedByUser = false;
+      let reconnectTimer: number | null = null;
+
+      const connect = () => {
+        const token = localStorage.getItem('access_token');
+        if (!token) {
+          return;
+        }
+        const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+        const wsUrl = `${protocol}://${window.location.host}/api/jobs/${jobId}/files/ws?token=${encodeURIComponent(token)}`;
+        ws = new WebSocket(wsUrl);
+
+        ws.onmessage = event => {
+          try {
+            const data = JSON.parse(event.data) as JobFile[];
+            if (Array.isArray(data)) {
+              subscriber.next(data);
+            }
+          } catch {
+            // ignore malformed payloads
+          }
+        };
+
+        ws.onerror = () => {
+          ws?.close();
+        };
+
+        ws.onclose = () => {
+          if (closedByUser) return;
+          reconnectTimer = window.setTimeout(connect, 1500);
+        };
+      };
+
+      connect();
+
+      return () => {
+        closedByUser = true;
+        if (reconnectTimer) {
+          clearTimeout(reconnectTimer);
+        }
+        ws?.close();
+      };
+    });
   }
 
   getJobProgress(jobId: string) {

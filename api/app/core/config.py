@@ -9,8 +9,8 @@ class Settings(BaseSettings):
     data_dir: str = "/data"
     jwt_secret: str = "change-me"
     jwt_algorithm: str = "HS256"
-    access_token_exp_minutes: int = 30
-    refresh_token_exp_days: int = 14
+    access_token_exp_minutes: int = 5256000
+    refresh_token_exp_days: int = 3650
     render_dpi: int = 150
     diff_threshold: int = 5
 

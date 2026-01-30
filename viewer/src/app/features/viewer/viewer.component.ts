@@ -1,7 +1,7 @@
 import { Component, ElementRef, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
-import { JobsService, JobPage } from '../../core/jobs.service';
+import { JobsService, JobFile, JobPage } from '../../core/jobs.service';
 import * as pdfjsLib from 'pdfjs-dist';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 
@@ -28,23 +28,65 @@ import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
         {{ loadError }}
       </div>
 
-      <div class="viewer-grid" *ngIf="!loadError">
-        <div class="canvas-wrap">
-          <div class="page-size">{{ pageSizeLabel }}</div>
-          <canvas #canvasA></canvas>
-          <div class="overlay overlay-left" [style.width.px]="overlayWidth" [style.height.px]="overlayHeight" [innerHTML]="overlaySvgLeft"></div>
+      <div class="grid" style="grid-template-columns: 320px 1fr; gap: 16px; align-items: start;" *ngIf="!loadError">
+        <div class="card" style="padding: 12px; max-height: 70vh; overflow:auto;">
+          <div style="display:flex; justify-content: space-between; align-items:center; margin-bottom: 8px;">
+            <strong>Files</strong>
+            <span style="font-size: 12px; color:#64748b;">{{ files.length }}</span>
+          </div>
+          <table style="width:100%; border-collapse: collapse; font-size: 12px;">
+            <thead>
+              <tr style="text-align:left; color:#64748b;">
+                <th style="padding: 6px 4px;">File</th>
+                <th style="padding: 6px 4px;">Diff</th>
+                <th style="padding: 6px 4px;">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                *ngFor="let file of files"
+                (click)="openFile(file)"
+                [style.background]="file.id === fileId ? 'var(--theme-secondary)' : 'transparent'"
+                style="cursor:pointer;"
+              >
+                <td style="padding: 6px 4px; word-break: break-word;">
+                  {{ file.relative_path }}
+                </td>
+                <td style="padding: 6px 4px;">
+                  <span class="badge" [ngClass]="file.has_diffs ? 'warn' : 'neutral'">
+                    {{ file.has_diffs ? 'Diff' : 'No Diff' }}
+                  </span>
+                </td>
+                <td style="padding: 6px 4px;">
+                  <span class="badge" [ngClass]="fileStatusBadge(file)">
+                    {{ (file.status || (file.missing_in_set_a || file.missing_in_set_b ? 'missing' : 'ready')) | titlecase }}
+                  </span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
-        <div class="canvas-wrap">
-          <div class="page-size">{{ pageSizeLabel }}</div>
-          <canvas #canvasB></canvas>
-          <div class="overlay overlay-right" [style.width.px]="overlayWidth" [style.height.px]="overlayHeight" [innerHTML]="overlaySvgRight"></div>
-        </div>
-      </div>
 
-      <div style="margin-top: 16px; display:flex; gap: 12px; align-items:center;">
-        <button class="btn secondary" (click)="prevPage()">Prev Page</button>
-        <div>Page {{ currentPage + 1 }} / {{ totalPages }}</div>
-        <button class="btn" (click)="nextPage()">Next Page</button>
+        <div>
+          <div class="viewer-grid">
+            <div class="canvas-wrap">
+              <div class="page-size">{{ pageSizeLabel }}</div>
+              <canvas #canvasA></canvas>
+              <div class="overlay overlay-left" [style.width.px]="overlayWidth" [style.height.px]="overlayHeight" [innerHTML]="overlaySvgLeft"></div>
+            </div>
+            <div class="canvas-wrap">
+              <div class="page-size">{{ pageSizeLabel }}</div>
+              <canvas #canvasB></canvas>
+              <div class="overlay overlay-right" [style.width.px]="overlayWidth" [style.height.px]="overlayHeight" [innerHTML]="overlaySvgRight"></div>
+            </div>
+          </div>
+
+          <div style="margin-top: 16px; display:flex; gap: 12px; align-items:center;">
+            <button class="btn secondary" (click)="prevPage()">Prev Page</button>
+            <div>Page {{ currentPage + 1 }} / {{ totalPages }}</div>
+            <button class="btn" (click)="nextPage()">Next Page</button>
+          </div>
+        </div>
       </div>
     </div>
   `
@@ -55,6 +97,8 @@ export class ViewerComponent implements OnInit, OnDestroy {
 
   jobId = '';
   fileId = '';
+  files: JobFile[] = [];
+  private filesWs?: { unsubscribe: () => void };
   pages: JobPage[] = [];
   currentPage = 0;
   totalPages = 0;
@@ -76,8 +120,52 @@ export class ViewerComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
-    this.jobId = this.route.snapshot.paramMap.get('jobId') || '';
-    this.fileId = this.route.snapshot.paramMap.get('fileId') || '';
+    this.route.paramMap.subscribe(params => {
+      const nextJobId = params.get('jobId') || '';
+      const nextFileId = params.get('fileId') || '';
+      const jobChanged = nextJobId !== this.jobId;
+      const fileChanged = nextFileId !== this.fileId;
+      this.jobId = nextJobId;
+      this.fileId = nextFileId;
+      if (jobChanged) {
+        this.loadJobFiles();
+        this.subscribeJobFiles();
+      }
+      if (fileChanged) {
+        this.loadFilePages();
+      }
+    });
+  }
+
+  loadJobFiles() {
+    if (!this.jobId) return;
+    this.jobs.listFiles(this.jobId).subscribe({
+      next: files => {
+        this.files = files;
+      },
+      error: () => {
+        this.files = [];
+      }
+    });
+  }
+
+  subscribeJobFiles() {
+    if (!this.jobId) return;
+    this.filesWs?.unsubscribe();
+    this.filesWs = this.jobs.watchJobFiles(this.jobId).subscribe({
+      next: files => {
+        this.files = files;
+      }
+    });
+  }
+
+  loadFilePages() {
+    if (!this.jobId || !this.fileId) return;
+    this.loadError = '';
+    this.pages = [];
+    this.currentPage = 0;
+    this.totalPages = 0;
+    this.resetPdfs();
     this.jobs.listPages(this.jobId, this.fileId).subscribe({
       next: pages => {
         this.pages = pages.sort((a, b) => a.page_index - b.page_index);
@@ -94,9 +182,31 @@ export class ViewerComponent implements OnInit, OnDestroy {
     });
   }
 
+  openFile(file: JobFile) {
+    if (!file?.id) return;
+    this.router.navigate(['/jobs', this.jobId, 'files', file.id]);
+  }
+
+  fileStatusBadge(file: JobFile) {
+    const status = (file.status || (file.missing_in_set_a || file.missing_in_set_b ? 'missing' : 'ready')).toLowerCase();
+    if (status === 'running' || status === 'pending') return 'badge warn';
+    if (status === 'failed' || status === 'incompatible') return 'badge danger';
+    if (status === 'missing') return 'badge warn';
+    if (status === 'completed') return 'badge success';
+    return 'badge neutral';
+  }
+
+
   ngOnDestroy(): void {
+    this.resetPdfs();
+    this.filesWs?.unsubscribe();
+  }
+
+  private resetPdfs() {
     this.pdfA?.destroy?.();
     this.pdfB?.destroy?.();
+    this.pdfA = null;
+    this.pdfB = null;
   }
 
   async loadPdfPair() {

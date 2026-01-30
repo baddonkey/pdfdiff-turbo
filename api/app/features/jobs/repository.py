@@ -1,6 +1,6 @@
 from typing import Iterable, Optional
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.features.jobs.models import Job, JobFile, JobPageResult
@@ -44,6 +44,35 @@ class JobFileRepository:
         result = await self._session.execute(select(JobFile).where(JobFile.job_id == job_id))
         return list(result.scalars().all())
 
+    async def update_has_diffs_for_job(self, job_id: str) -> None:
+        result = await self._session.execute(
+            select(JobPageResult.job_file_id)
+            .where(JobPageResult.diff_score.is_not(None))
+            .where(JobPageResult.diff_score > 0)
+            .join(JobFile, JobPageResult.job_file_id == JobFile.id)
+            .where(JobFile.job_id == job_id)
+            .distinct()
+        )
+        diff_file_ids = [row[0] for row in result.all()]
+        await self._session.execute(update(JobFile).where(JobFile.job_id == job_id).values(has_diffs=False))
+        if diff_file_ids:
+            await self._session.execute(
+                update(JobFile).where(JobFile.id.in_(diff_file_ids)).values(has_diffs=True)
+            )
+
+    async def diff_flags_for_job(self, job_id: str) -> dict[str, bool]:
+        result = await self._session.execute(
+            select(
+                JobPageResult.job_file_id,
+                func.bool_or(JobPageResult.diff_score > 0)
+            )
+            .join(JobFile, JobPageResult.job_file_id == JobFile.id)
+            .where(JobFile.job_id == job_id)
+            .where(JobPageResult.diff_score.is_not(None))
+            .group_by(JobPageResult.job_file_id)
+        )
+        return {str(file_id): bool(flag) for file_id, flag in result.all()}
+
     async def get_by_id_and_job(self, file_id: str, job_id: str) -> Optional[JobFile]:
         result = await self._session.execute(
             select(JobFile).where(JobFile.id == file_id, JobFile.job_id == job_id)
@@ -72,6 +101,14 @@ class JobPageResultRepository:
             select(JobPageResult.status, func.count())
             .join(JobFile, JobPageResult.job_file_id == JobFile.id)
             .where(JobFile.job_id == job_id)
+            .group_by(JobPageResult.status)
+        )
+        return [(status.value if hasattr(status, "value") else str(status), count) for status, count in result.all()]
+
+    async def count_status_for_file(self, file_id: str) -> list[tuple[str, int]]:
+        result = await self._session.execute(
+            select(JobPageResult.status, func.count())
+            .where(JobPageResult.job_file_id == file_id)
             .group_by(JobPageResult.status)
         )
         return [(status.value if hasattr(status, "value") else str(status), count) for status, count in result.all()]
