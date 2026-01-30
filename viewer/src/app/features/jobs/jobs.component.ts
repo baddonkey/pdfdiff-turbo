@@ -149,56 +149,6 @@ import { TopbarActionsService } from '../../core/topbar-actions.service';
       </div>
     </div>
 
-    <div *ngIf="activeTab === 'jobs'" class="card" style="margin-top:16px;">
-        <div style="display:flex; justify-content: space-between; align-items:flex-start; gap: 12px;">
-          <div>
-            <h2 style="margin: 0;">Job Files</h2>
-            <div *ngIf="selectedJob" style="margin-top: 6px; font-size: 13px; color:#475569;">
-              {{ selectedJob.display_id || selectedJob.id }} · Set A: {{ selectedJob.set_a_label || 'setA' }} · Set B: {{ selectedJob.set_b_label || 'setB' }}
-            </div>
-          </div>
-        </div>
-      <div *ngIf="jobProgress" style="margin-bottom: 12px;">
-        <div style="display:flex; justify-content: space-between; align-items:center;">
-          <strong>Progress</strong>
-          <span>{{ jobProgress.percent }}%</span>
-        </div>
-        <div style="height: 8px; background:#e2e8f0; border-radius:999px; overflow:hidden; margin: 6px 0 8px;">
-          <div [style.width.%]="jobProgress.percent" style="height: 100%; background:#2563eb;"></div>
-        </div>
-        <div style="display:flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color:#475569;">
-          <span>Done: {{ jobProgress.completed }}</span>
-          <span>Running: {{ jobProgress.running }}</span>
-          <span>Pending: {{ jobProgress.pending }}</span>
-          <span>Missing: {{ jobProgress.missing }}</span>
-          <span>Incompatible: {{ jobProgress.incompatible }}</span>
-          <span>Failed: {{ jobProgress.failed }}</span>
-        </div>
-      </div>
-      <div class="grid" style="grid-template-columns: 220px 1fr; gap: 20px;">
-        <div>
-          <label>Job ID</label>
-          <input class="input" [(ngModel)]="jobId" placeholder="Paste job id" />
-          <button class="btn" (click)="loadFiles()">Load Files</button>
-        </div>
-        <div>
-          <div *ngIf="files.length === 0">No files loaded.</div>
-          <div *ngFor="let file of files" class="card" style="margin-bottom: 12px;">
-            <div style="display:flex; justify-content: space-between; align-items: center;">
-              <div>
-                <strong>{{ file.relative_path }}</strong>
-                <div>
-                  <span class="badge" [ngClass]="badgeClass(file)">
-                    {{ file.missing_in_set_a || file.missing_in_set_b ? 'Missing' : 'Ready' }}
-                  </span>
-                </div>
-              </div>
-              <a class="btn" [routerLink]="['/jobs', jobId, 'files', file.id]">Open</a>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
   `
 })
 export class JobsComponent implements OnInit, AfterViewInit, OnDestroy {
