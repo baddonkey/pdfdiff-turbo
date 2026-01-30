@@ -122,7 +122,7 @@ a {
   border-radius: 12px;
   background: #fff;
   padding: 12px;
-  overflow: auto;
+  overflow: hidden;
   width: fit-content;
   max-width: 100%;
   max-height: 100%;
