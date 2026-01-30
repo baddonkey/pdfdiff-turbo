@@ -173,6 +173,10 @@ export class JobsService {
     return this.http.post(`${this.baseUrl}/jobs/${jobId}/start${qs}`, {});
   }
 
+  continueJob(jobId: string) {
+    return this.http.post(`${this.baseUrl}/jobs/${jobId}/continue`, {});
+  }
+
   listFiles(jobId: string) {
     return this.http.get<JobFile[]>(`${this.baseUrl}/jobs/${jobId}/files`);
   }

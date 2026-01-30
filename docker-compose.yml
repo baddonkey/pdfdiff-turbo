@@ -11,12 +11,24 @@ services:
       - pgdata:/var/lib/postgresql/data
     ports:
       - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+    restart: unless-stopped
 
   rabbitmq:
     image: rabbitmq:3-management
     ports:
       - "5672:5672"
       - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
 
   api:
     build: ./api
@@ -27,15 +39,19 @@ services:
       CELERY_RESULT_BACKEND: rpc://
       DATA_DIR: /data
       JWT_SECRET: change-me
+      RENDER_DPI: "150"
     volumes:
       - data:/data
       - ./samples:/data/samples:ro
     depends_on:
-      - postgres
-      - rabbitmq
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     ports:
       - "8000:8000"
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    restart: unless-stopped
 
   worker:
     build: ./api
@@ -46,21 +62,27 @@ services:
       CELERY_RESULT_BACKEND: rpc://
       DATA_DIR: /data
       JWT_SECRET: change-me
+      RENDER_DPI: "150"
     volumes:
       - data:/data
       - ./samples:/data/samples:ro
     depends_on:
-      - postgres
-      - rabbitmq
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     command: celery -A app.core.celery_app.celery_app worker --loglevel=INFO --pool=solo --concurrency=1
+    restart: unless-stopped
 
   flower:
     build: ./api
     command: celery -A app.core.celery_app.celery_app flower --broker=amqp://guest:guest@rabbitmq:5672//
     depends_on:
-      - rabbitmq
+      rabbitmq:
+        condition: service_healthy
     ports:
       - "5555:5555"
+    restart: unless-stopped
 
   viewer:
     build: ./viewer
@@ -68,6 +90,7 @@ services:
       - prod
     ports:
       - "8080:80"
+    restart: unless-stopped
 
   viewer-dev:
     image: node:20-alpine
@@ -82,11 +105,13 @@ services:
       - /app/node_modules
     ports:
       - "4200:4200"
+    restart: unless-stopped
 
   admin:
     build: ./admin
     ports:
       - "8081:80"
+    restart: unless-stopped
 
   admin-dev:
     image: node:20-alpine
@@ -101,6 +126,7 @@ services:
       - /app/node_modules
     ports:
       - "4201:4201"
+    restart: unless-stopped
 
 volumes:
   pgdata:

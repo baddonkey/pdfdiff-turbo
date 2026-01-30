@@ -74,6 +74,11 @@ import { TopbarActionsService } from '../../core/topbar-actions.service';
                 </div>
                 <div style="display:flex; gap: 8px;">
                   <button class="btn secondary" (click)="openJobDetails(job.id)">Compare</button>
+                  <button
+                    class="btn"
+                    *ngIf="hasPending(getRecentProgress(job))"
+                    (click)="continueJob(job)"
+                  >Continue</button>
                 </div>
               </div>
               <div *ngIf="getRecentProgress(job) as progress" style="margin-top: 10px;">
@@ -144,6 +149,12 @@ import { TopbarActionsService } from '../../core/topbar-actions.service';
           </div>
           <div style="position: absolute; top: 12px; right: 12px;">
             <button class="btn secondary" (click)="$event.stopPropagation(); openJobDetails(job.id)">Compare</button>
+            <button
+              class="btn"
+              *ngIf="hasPending(job.progress)"
+              (click)="$event.stopPropagation(); continueJob(job)"
+              style="margin-left: 6px;"
+            >Continue</button>
           </div>
         </div>
       </div>
@@ -513,6 +524,27 @@ export class JobsComponent implements OnInit, AfterViewInit, OnDestroy {
   
   private sortJobs(jobs: JobSummary[]) {
     return [...jobs].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  }
+
+  hasPending(progress: import('../../core/jobs.service').JobProgress | null | undefined) {
+    return !!progress && (progress.pending ?? 0) > 0;
+  }
+
+  continueJob(job: JobSummary) {
+    this.message = '';
+    this.error = '';
+    this.jobsService.continueJob(job.id).subscribe({
+      next: () => {
+        this.message = 'Job continued.';
+        this.loadJobs();
+        if (this.jobId === job.id) {
+          this.loadFiles();
+        }
+      },
+      error: (err: any) => {
+        this.error = this.formatError(err, 'Failed to continue job.');
+      }
+    });
   }
 
   selectJob(jobId: string) {

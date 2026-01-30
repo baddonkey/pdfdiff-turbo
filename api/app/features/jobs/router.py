@@ -321,6 +321,19 @@ async def start_job(
     return await service.start_job(job)
 
 
+@router.post("/{job_id}/continue", response_model=JobStartedMessage)
+async def continue_job(
+    job_id: str,
+    service: JobService = Depends(get_job_service),
+    repo=Depends(get_job_repository),
+    user: User = Depends(get_current_user),
+) -> JobStartedMessage:
+    job = await repo.get_by_id_and_user(job_id, str(user.id))
+    if not job:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
+    return await service.continue_job(job)
+
+
 @router.get("/{job_id}", response_model=JobStatusMessage)
 async def get_job_status(
     job_id: str,

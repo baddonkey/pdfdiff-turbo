@@ -154,12 +154,15 @@ export class ViewerComponent implements OnInit, OnDestroy {
   overlaySvgRight: SafeHtml = '';
   overlayWidth = 0;
   overlayHeight = 0;
+  overlayRenderWidth = 0;
+  overlayRenderHeight = 0;
   loadError = '';
   pageSizeLabel = '';
 
   magnifierEnabled = false;
   magnifierSize = 160;
   magnifierZoom = 2.5;
+  renderQuality = 2;
 
   private overlaySvgRaw = '';
   private overlayImage?: HTMLImageElement;
@@ -346,8 +349,10 @@ export class ViewerComponent implements OnInit, OnDestroy {
         await this.renderPdfPage(this.pdfB, this.currentPage + 1, this.canvasB.nativeElement);
       }
 
-      this.overlayWidth = this.canvasA.nativeElement.width;
-      this.overlayHeight = this.canvasA.nativeElement.height;
+      this.overlayWidth = this.canvasA.nativeElement.clientWidth || this.canvasA.nativeElement.width;
+      this.overlayHeight = this.canvasA.nativeElement.clientHeight || this.canvasA.nativeElement.height;
+      this.overlayRenderWidth = this.canvasA.nativeElement.width;
+      this.overlayRenderHeight = this.canvasA.nativeElement.height;
     } catch (err) {
       console.error('PDF render error', err);
       this.loadError = 'Failed to render PDF pages.';
@@ -411,11 +416,15 @@ export class ViewerComponent implements OnInit, OnDestroy {
     const scaleToFit = Math.min(scaleToFitHeight, scaleToFitWidth);
     const finalScale = Math.min(Math.max(scaleToFit, 0.5), 3); // clamp between 0.5 and 3
     
-    const viewport = page.getViewport({ scale: finalScale });
+    const displayViewport = page.getViewport({ scale: finalScale });
+    const renderScale = finalScale * this.renderQuality;
+    const viewport = page.getViewport({ scale: renderScale });
     const context = canvas.getContext('2d');
     if (!context) throw new Error('Canvas context missing');
     canvas.height = viewport.height;
     canvas.width = viewport.width;
+    canvas.style.width = `${displayViewport.width}px`;
+    canvas.style.height = `${displayViewport.height}px`;
     const widthMm = (viewport1.width * 25.4) / 72;
     const heightMm = (viewport1.height * 25.4) / 72;
     this.pageSizeLabel = `${widthMm.toFixed(0)} × ${heightMm.toFixed(0)} mm`;
@@ -630,17 +639,17 @@ export class ViewerComponent implements OnInit, OnDestroy {
     img.crossOrigin = 'anonymous';
     img.onload = () => {
       this.overlayImageReady = true;
-      if (this.overlayWidth && this.overlayHeight) {
-        img.width = this.overlayWidth;
-        img.height = this.overlayHeight;
+      if (this.overlayRenderWidth && this.overlayRenderHeight) {
+        img.width = this.overlayRenderWidth;
+        img.height = this.overlayRenderHeight;
       }
     };
     img.onerror = () => {
       this.overlayImage = undefined;
       this.overlayImageReady = false;
     };
-    const width = this.overlayWidth || undefined;
-    const height = this.overlayHeight || undefined;
+    const width = this.overlayRenderWidth || undefined;
+    const height = this.overlayRenderHeight || undefined;
     let svgText = svg.replace(/<\?xml[^>]*\?>/g, '');
     svgText = svgText.replace(/currentColor/g, '#ff0000');
     svgText = svgText.replace(/stroke:#ff0000/g, 'stroke:#ff0000');

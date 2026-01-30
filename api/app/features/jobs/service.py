@@ -7,10 +7,11 @@ from typing import Iterable
 
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from app.core.config import settings
 from app.core.celery_app import celery_app
-from app.features.jobs.models import Job, JobFile, JobStatus, PageStatus
+from app.features.jobs.models import Job, JobFile, JobPageResult, JobStatus, PageStatus
 from app.features.jobs.repository import JobFileRepository, JobPageResultRepository, JobRepository
 from app.features.jobs.schemas import (
     JobCreatedMessage,
@@ -149,6 +150,40 @@ class JobService:
         job.status = JobStatus.running
         await self._session.commit()
         celery_app.send_task("run_job", args=[str(job.id)])
+        return JobStartedMessage(id=str(job.id), status=job.status.value)
+
+    async def continue_job(self, job: Job) -> JobStartedMessage:
+        if job.status == JobStatus.cancelled:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Job is cancelled")
+
+        result = await self._session.execute(
+            select(JobPageResult)
+            .join(JobFile, JobPageResult.job_file_id == JobFile.id)
+            .where(JobFile.job_id == job.id)
+            .where(JobPageResult.status.in_([PageStatus.pending, PageStatus.failed]))
+        )
+        pages = list(result.scalars().all())
+        if not pages:
+            return JobStartedMessage(id=str(job.id), status=job.status.value)
+
+        for page in pages:
+            if page.status == PageStatus.failed:
+                page.status = PageStatus.pending
+                page.diff_score = None
+                page.incompatible_size = False
+                page.overlay_svg_path = None
+                page.error_message = None
+            page.task_id = None
+
+        await self._session.commit()
+
+        for page in pages:
+            if page.status == PageStatus.pending:
+                async_result = celery_app.send_task("compare_page", args=[str(page.id)])
+                page.task_id = async_result.id
+
+        job.status = JobStatus.running
+        await self._session.commit()
         return JobStartedMessage(id=str(job.id), status=job.status.value)
 
     async def list_files(self, job: Job) -> list[JobFileMessage]:
