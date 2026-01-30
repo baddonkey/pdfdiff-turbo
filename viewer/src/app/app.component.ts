@@ -13,7 +13,9 @@ import { TopbarActionsService } from './core/topbar-actions.service';
       <header class="topbar">
         <div style="display:flex; align-items:center; gap: 12px;">
           <img src="assets/logo.png" alt="Logo" style="height: 84px; width: 84px; object-fit: contain;" />
-          <strong>PDFDiff Viewer</strong>
+          <strong>
+            PDFDiff Viewer<ng-container *ngIf="topbar.jobTitle$ | async as jobTitle"> Compare - {{ jobTitle }}</ng-container>
+          </strong>
           <ng-container *ngIf="topbar.actions$ | async as actions">
             <ng-container *ngTemplateOutlet="actions"></ng-container>
           </ng-container>

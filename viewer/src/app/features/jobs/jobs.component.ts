@@ -73,7 +73,7 @@ import { TopbarActionsService } from '../../core/topbar-actions.service';
                   </div>
                 </div>
                 <div style="display:flex; gap: 8px;">
-                  <button class="btn secondary" (click)="openJobDetails(job.id)">Job Details</button>
+                  <button class="btn secondary" (click)="openJobDetails(job.id)">Compare</button>
                 </div>
               </div>
               <div *ngIf="getRecentProgress(job) as progress" style="margin-top: 10px;">
@@ -143,7 +143,7 @@ import { TopbarActionsService } from '../../core/topbar-actions.service';
             </div>
           </div>
           <div style="position: absolute; top: 12px; right: 12px;">
-            <button class="btn secondary" (click)="$event.stopPropagation(); openJobDetails(job.id)">Job Details</button>
+            <button class="btn secondary" (click)="$event.stopPropagation(); openJobDetails(job.id)">Compare</button>
           </div>
         </div>
       </div>
