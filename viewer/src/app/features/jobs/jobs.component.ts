@@ -196,7 +196,7 @@ export class JobsComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   ngAfterViewInit() {
-    this.topbar.setActions(this.topbarActionsTpl);
+    setTimeout(() => this.topbar.setActions(this.topbarActionsTpl), 0);
   }
 
   ngOnDestroy() {
