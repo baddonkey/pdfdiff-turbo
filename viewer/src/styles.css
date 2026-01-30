@@ -39,6 +39,9 @@ a {
 
 .container {
   padding: 24px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
 .card {
@@ -46,6 +49,9 @@ a {
   border-radius: 16px;
   padding: 20px;
   box-shadow: 0 12px 40px rgba(15, 23, 42, 0.08);
+  display: flex;
+  flex-direction: column;
+  flex: 1;
 }
 
 .btn {
@@ -106,6 +112,8 @@ a {
   gap: 20px;
   align-items: start;
   overflow: auto;
+  flex: 1;
+  min-height: 0;
 }
 
 .canvas-wrap {
@@ -114,9 +122,10 @@ a {
   border-radius: 12px;
   background: #fff;
   padding: 12px;
-  overflow: hidden;
+  overflow: auto;
   width: fit-content;
-  max-width: none;
+  max-width: 100%;
+  max-height: 100%;
 }
 
 .canvas-wrap.magnifier-on canvas {
