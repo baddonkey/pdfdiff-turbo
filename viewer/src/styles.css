@@ -63,6 +63,11 @@ a {
   color: var(--theme-primary);
 }
 
+.btn.magnifier-active {
+  background: var(--theme-primary);
+  color: var(--theme-primary-contrast);
+}
+
 .grid {
   display: grid;
   gap: 16px;
@@ -114,6 +119,10 @@ a {
   max-width: none;
 }
 
+.canvas-wrap.magnifier-on canvas {
+  cursor: zoom-in;
+}
+
 .page-size {
   position: absolute;
   top: 8px;
@@ -154,6 +163,27 @@ a {
 }
 
 .overlay svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.magnifier {
+  display: none;
+  position: fixed !important;
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.95);
+  border: 3px solid #334155 !important;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.4), 0 0 0 1px rgba(0,0,0,0.1) inset;
+  pointer-events: none !important;
+  z-index: 99999 !important;
+  overflow: hidden;
+}
+
+
+.magnifier canvas {
   width: 100%;
   height: 100%;
   display: block;

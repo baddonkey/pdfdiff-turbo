@@ -1,4 +1,4 @@
-import { Component, ElementRef, OnDestroy, OnInit, ViewChild } from '@angular/core';
+import { Component, ElementRef, HostListener, OnDestroy, OnInit, ViewChild, Renderer2 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { JobsService, JobFile, JobPage } from '../../core/jobs.service';
@@ -21,6 +21,9 @@ import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
         <div>
           <button class="btn secondary" (click)="prevDiff()">Prev Diff</button>
           <button class="btn" (click)="nextDiff()">Next Diff</button>
+          <button class="btn secondary" [class.magnifier-active]="magnifierEnabled" (click)="toggleMagnifier()">
+            Magnifier
+          </button>
         </div>
       </div>
 
@@ -69,12 +72,26 @@ import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 
         <div>
           <div class="viewer-grid">
-            <div class="canvas-wrap">
+            <div
+              class="canvas-wrap"
+              data-side="A"
+              [class.magnifier-on]="magnifierEnabled"
+              (mouseenter)="onMagnifierEnter($event, 'A')"
+              (mousemove)="onMagnifierMove($event, 'A')"
+              (mouseleave)="hideMagnifier('A')"
+            >
               <div class="page-size">{{ pageSizeLabel }}</div>
               <canvas #canvasA></canvas>
               <div class="overlay overlay-left" [style.width.px]="overlayWidth" [style.height.px]="overlayHeight" [innerHTML]="overlaySvgLeft"></div>
             </div>
-            <div class="canvas-wrap">
+            <div
+              class="canvas-wrap"
+              data-side="B"
+              [class.magnifier-on]="magnifierEnabled"
+              (mouseenter)="onMagnifierEnter($event, 'B')"
+              (mousemove)="onMagnifierMove($event, 'B')"
+              (mouseleave)="hideMagnifier('B')"
+            >
               <div class="page-size">{{ pageSizeLabel }}</div>
               <canvas #canvasB></canvas>
               <div class="overlay overlay-right" [style.width.px]="overlayWidth" [style.height.px]="overlayHeight" [innerHTML]="overlaySvgRight"></div>
@@ -88,12 +105,34 @@ import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
           </div>
         </div>
       </div>
+      
+      <!-- Magnifiers at document level for proper z-index -->
+      <div
+        #magnifierWrapA
+        class="magnifier"
+        [style.width.px]="magnifierSize"
+        [style.height.px]="magnifierSize"
+      >
+        <canvas #magnifierA></canvas>
+      </div>
+      <div
+        #magnifierWrapB
+        class="magnifier"
+        [style.width.px]="magnifierSize"
+        [style.height.px]="magnifierSize"
+      >
+        <canvas #magnifierB></canvas>
+      </div>
     </div>
   `
 })
 export class ViewerComponent implements OnInit, OnDestroy {
   @ViewChild('canvasA', { static: false }) canvasA?: ElementRef<HTMLCanvasElement>;
   @ViewChild('canvasB', { static: false }) canvasB?: ElementRef<HTMLCanvasElement>;
+  @ViewChild('magnifierA', { static: false }) magnifierCanvasA?: ElementRef<HTMLCanvasElement>;
+  @ViewChild('magnifierB', { static: false }) magnifierCanvasB?: ElementRef<HTMLCanvasElement>;
+  @ViewChild('magnifierWrapA', { static: false }) magnifierWrapA?: ElementRef<HTMLDivElement>;
+  @ViewChild('magnifierWrapB', { static: false }) magnifierWrapB?: ElementRef<HTMLDivElement>;
 
   jobId = '';
   fileId = '';
@@ -109,6 +148,15 @@ export class ViewerComponent implements OnInit, OnDestroy {
   loadError = '';
   pageSizeLabel = '';
 
+  magnifierEnabled = false;
+  magnifierSize = 160;
+  magnifierZoom = 2.5;
+
+  private overlaySvgRaw = '';
+  private overlayImage?: HTMLImageElement;
+  private overlayImageUrl?: string;
+  private overlayImageReady = false;
+
   private pdfA: any;
   private pdfB: any;
 
@@ -116,7 +164,8 @@ export class ViewerComponent implements OnInit, OnDestroy {
     private route: ActivatedRoute,
     private jobs: JobsService,
     private router: Router,
-    private sanitizer: DomSanitizer
+    private sanitizer: DomSanitizer,
+    private renderer: Renderer2
   ) {}
 
   ngOnInit(): void {
@@ -264,9 +313,18 @@ export class ViewerComponent implements OnInit, OnDestroy {
 
     this.overlaySvgLeft = '';
     this.overlaySvgRight = '';
+    this.overlaySvgRaw = '';
+    this.overlayImage = undefined;
+    this.overlayImageReady = false;
+    if (this.overlayImageUrl) {
+      URL.revokeObjectURL(this.overlayImageUrl);
+      this.overlayImageUrl = undefined;
+    }
     if (page.status === 'done') {
       this.jobs.getOverlay(this.jobId, this.fileId, String(page.page_index)).subscribe({
         next: svg => {
+          this.overlaySvgRaw = svg;
+          this.overlayImage = this.buildOverlayImage(svg);
           const safe = this.sanitizer.bypassSecurityTrustHtml(svg);
           this.overlaySvgLeft = safe;
           this.overlaySvgRight = safe;
@@ -274,6 +332,13 @@ export class ViewerComponent implements OnInit, OnDestroy {
         error: () => {
           this.overlaySvgLeft = '';
           this.overlaySvgRight = '';
+          this.overlaySvgRaw = '';
+          this.overlayImage = undefined;
+          this.overlayImageReady = false;
+          if (this.overlayImageUrl) {
+            URL.revokeObjectURL(this.overlayImageUrl);
+            this.overlayImageUrl = undefined;
+          }
         }
       });
     }
@@ -338,5 +403,226 @@ export class ViewerComponent implements OnInit, OnDestroy {
 
   backToJobs() {
     this.router.navigate(['/jobs']);
+  }
+
+  toggleMagnifier() {
+    this.magnifierEnabled = !this.magnifierEnabled;
+    if (!this.magnifierEnabled) {
+      this.hideMagnifier('A');
+      this.hideMagnifier('B');
+    }
+  }
+
+  hideMagnifier(side: 'A' | 'B') {
+    // Hide both magnifiers when leaving either canvas
+    const elA = this.magnifierWrapA?.nativeElement;
+    const elB = this.magnifierWrapB?.nativeElement;
+    if (elA) {
+      elA.style.display = 'none';
+    }
+    if (elB) {
+      elB.style.display = 'none';
+    }
+  }
+
+  onMagnifierEnter(event: MouseEvent, side: 'A' | 'B') {
+    if (!this.magnifierEnabled) return;
+    const el = side === 'A' ? this.magnifierWrapA?.nativeElement : this.magnifierWrapB?.nativeElement;
+    if (el) {
+      el.style.display = 'block';
+    }
+    this.onMagnifierMove(event, side);
+  }
+
+  onMagnifierMove(event: MouseEvent, side: 'A' | 'B', wrapOverride?: HTMLElement) {
+    if (!this.magnifierEnabled) return;
+    const current = event.currentTarget as HTMLElement | null;
+    const wrap = wrapOverride
+      ?? (current && !(current instanceof HTMLCanvasElement) ? current : null)
+      ?? (event.target as HTMLElement | null)?.closest?.('.canvas-wrap')
+      ?? null;
+    const canvasFromWrap = wrap ? (wrap.querySelector('canvas') as HTMLCanvasElement | null) : null;
+    const canvas = (current instanceof HTMLCanvasElement ? current : null)
+      ?? canvasFromWrap
+      ?? (side === 'A' ? this.canvasA?.nativeElement : this.canvasB?.nativeElement);
+    const magCanvas = side === 'A' ? this.magnifierCanvasA?.nativeElement : this.magnifierCanvasB?.nativeElement;
+    if (!canvas || !magCanvas) return;
+    const canvasRect = canvas.getBoundingClientRect();
+    const localX = event.clientX - canvasRect.left;
+    const localY = event.clientY - canvasRect.top;
+    if (localX < 0 || localY < 0 || localX > canvasRect.width || localY > canvasRect.height) {
+      this.hideMagnifier(side);
+      return;
+    }
+
+    const scaleX = canvas.width / canvasRect.width;
+    const scaleY = canvas.height / canvasRect.height;
+    const normX = localX / canvasRect.width;
+    const normY = localY / canvasRect.height;
+    const cx = normX * canvas.width;
+    const cy = normY * canvas.height;
+    this.renderMagnifier(side, canvas, magCanvas, canvasRect, cx, cy, event.clientX, event.clientY);
+
+    const otherSide = side === 'A' ? 'B' : 'A';
+    const otherCanvas = otherSide === 'A' ? this.canvasA?.nativeElement : this.canvasB?.nativeElement;
+    const otherMagCanvas = otherSide === 'A' ? this.magnifierCanvasA?.nativeElement : this.magnifierCanvasB?.nativeElement;
+    if (otherCanvas && otherMagCanvas) {
+      const otherRect = otherCanvas.getBoundingClientRect();
+      const otherCx = normX * otherCanvas.width;
+      const otherCy = normY * otherCanvas.height;
+      const otherClientX = otherRect.left + normX * otherRect.width;
+      const otherClientY = otherRect.top + normY * otherRect.height;
+      this.renderMagnifier(otherSide, otherCanvas, otherMagCanvas, otherRect, otherCx, otherCy, otherClientX, otherClientY);
+    }
+  }
+
+  @HostListener('document:mousemove', ['$event'])
+  onDocumentMouseMove(event: MouseEvent) {
+    if (!this.magnifierEnabled) return;
+    const canvasA = this.canvasA?.nativeElement;
+    const canvasB = this.canvasB?.nativeElement;
+    if (!canvasA && !canvasB) return;
+    const rectA = canvasA?.getBoundingClientRect();
+    const rectB = canvasB?.getBoundingClientRect();
+    const x = event.clientX;
+    const y = event.clientY;
+    const inA = !!rectA && x >= rectA.left && x <= rectA.right && y >= rectA.top && y <= rectA.bottom;
+    const inB = !!rectB && x >= rectB.left && x <= rectB.right && y >= rectB.top && y <= rectB.bottom;
+    if (inA) {
+      this.onMagnifierMove(event, 'A', canvasA?.parentElement || undefined);
+    } else if (inB) {
+      this.onMagnifierMove(event, 'B', canvasB?.parentElement || undefined);
+    }
+  }
+
+
+
+  private renderMagnifier(
+    side: 'A' | 'B',
+    canvas: HTMLCanvasElement,
+    magCanvas: HTMLCanvasElement,
+    canvasRect: DOMRect,
+    cx: number,
+    cy: number,
+    clientX: number,
+    clientY: number
+  ) {
+    const size = this.magnifierSize;
+    const radius = size / 2;
+    magCanvas.width = size;
+    magCanvas.height = size;
+    const ctx = magCanvas.getContext('2d');
+    if (!ctx) return;
+    ctx.clearRect(0, 0, size, size);
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(radius, radius, radius - 2, 0, Math.PI * 2);
+    ctx.clip();
+    try {
+      const zoom = this.magnifierZoom;
+      ctx.setTransform(zoom, 0, 0, zoom, radius - cx * zoom, radius - cy * zoom);
+      ctx.drawImage(canvas, 0, 0);
+      if (this.overlayImage && this.overlayImageReady) {
+        try {
+          const zoom = this.magnifierZoom;
+          ctx.setTransform(zoom, 0, 0, zoom, radius - cx * zoom, radius - cy * zoom);
+          ctx.drawImage(this.overlayImage, 0, 0, canvas.width, canvas.height);
+          ctx.setTransform(1, 0, 0, 1, 0, 0);
+        } catch (err) {
+          ctx.setTransform(1, 0, 0, 1, 0, 0);
+        }
+      }
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+    } catch (err) {
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, size, size);
+      ctx.strokeStyle = '#cbd5f5';
+      ctx.lineWidth = 1;
+      for (let i = 0; i <= size; i += 12) {
+        ctx.beginPath();
+        ctx.moveTo(i, 0);
+        ctx.lineTo(i, size);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(0, i);
+        ctx.lineTo(size, i);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+    ctx.beginPath();
+    ctx.arc(radius, radius, radius - 1, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(15, 23, 42, 0.45)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Position magnifier circle offset from cursor (bottom-right)
+    const offsetX = 20;
+    const offsetY = 20;
+    const left = clientX + offsetX;
+    const top = clientY + offsetY;
+    this.positionMagnifier(side, left, top);
+  }
+
+  private buildOverlayImage(svg: string) {
+    if (!svg) return undefined;
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      this.overlayImageReady = true;
+      if (this.overlayWidth && this.overlayHeight) {
+        img.width = this.overlayWidth;
+        img.height = this.overlayHeight;
+      }
+    };
+    img.onerror = () => {
+      this.overlayImage = undefined;
+      this.overlayImageReady = false;
+    };
+    const width = this.overlayWidth || undefined;
+    const height = this.overlayHeight || undefined;
+    let svgText = svg.replace(/<\?xml[^>]*\?>/g, '');
+    svgText = svgText.replace(/currentColor/g, '#ff0000');
+    svgText = svgText.replace(/stroke:#ff0000/g, 'stroke:#ff0000');
+    svgText = svgText.replace(/stroke="currentColor"/g, 'stroke="#ff0000"');
+    svgText = svgText.replace(/stroke='currentColor'/g, "stroke='#ff0000'");
+    if (!/width=/.test(svgText) && width) {
+      svgText = svgText.replace('<svg', `<svg width="${width}"`);
+    }
+    if (!/height=/.test(svgText) && height) {
+      svgText = svgText.replace('<svg', `<svg height="${height}"`);
+    }
+    if (!/style=/.test(svgText)) {
+      svgText = svgText.replace('<svg', `<svg style="color:#ff0000; stroke:#ff0000; fill:none;"`);
+    }
+    if (this.overlayImageUrl) {
+      URL.revokeObjectURL(this.overlayImageUrl);
+    }
+    const blob = new Blob([svgText], { type: 'image/svg+xml' });
+    this.overlayImageUrl = URL.createObjectURL(blob);
+    img.src = this.overlayImageUrl;
+    return img;
+  }
+
+  private clamp(value: number, min: number, max: number) {
+    return Math.max(min, Math.min(max, value));
+  }
+
+  private positionMagnifier(side: 'A' | 'B', left: number, top: number) {
+    const el = side === 'A' ? this.magnifierWrapA?.nativeElement : this.magnifierWrapB?.nativeElement;
+    if (!el) {
+      console.error('Magnifier element not found for side:', side);
+      return;
+    }
+    
+    // Use Renderer2 for reliable DOM manipulation
+    this.renderer.setStyle(el, 'display', 'block');
+    this.renderer.setStyle(el, 'position', 'fixed');
+    this.renderer.setStyle(el, 'left', `${left}px`);
+    this.renderer.setStyle(el, 'top', `${top}px`);
+    this.renderer.setStyle(el, 'pointer-events', 'none');
+    this.renderer.setStyle(el, 'z-index', '99999');
+    this.renderer.setStyle(el, 'transform', 'translate(0, 0)');
   }
 }
