@@ -8,6 +8,7 @@ class JobCreatedMessage(BaseModel):
     status: str
     set_a_label: str | None = None
     set_b_label: str | None = None
+    has_diffs: bool = False
     created_at: datetime
 
 
@@ -22,6 +23,7 @@ class JobStatusMessage(BaseModel):
     status: str
     set_a_label: str | None = None
     set_b_label: str | None = None
+    has_diffs: bool = False
     created_at: datetime
 
 
@@ -31,6 +33,7 @@ class JobSummaryMessage(BaseModel):
     status: str
     set_a_label: str | None = None
     set_b_label: str | None = None
+    has_diffs: bool = False
     created_at: datetime
 
 
@@ -41,6 +44,8 @@ class JobFileMessage(BaseModel):
     set_b_path: str | None
     missing_in_set_a: bool
     missing_in_set_b: bool
+    has_diffs: bool = False
+    status: str = "ready"
     created_at: datetime
 
 

@@ -47,6 +47,7 @@ class JobService:
             status=job.status.value,
             set_a_label=job.set_a_label,
             set_b_label=job.set_b_label,
+            has_diffs=job.has_diffs,
             created_at=job.created_at,
         )
 
@@ -128,6 +129,7 @@ class JobService:
         set_b = list_relative_files(set_b_dir)
 
         await self._file_repo.delete_for_job(job.id)
+        job.has_diffs = False
 
         pairs = self._pair_paths(set_a, set_b)
         files = [
@@ -138,6 +140,7 @@ class JobService:
                 set_b_path=pair["set_b_path"],
                 missing_in_set_a=pair["missing_in_set_a"],
                 missing_in_set_b=pair["missing_in_set_b"],
+                has_diffs=False,
             )
             for pair in pairs
         ]
@@ -158,6 +161,8 @@ class JobService:
                 set_b_path=item.set_b_path,
                 missing_in_set_a=item.missing_in_set_a,
                 missing_in_set_b=item.missing_in_set_b,
+                has_diffs=item.has_diffs,
+                status="missing" if (item.missing_in_set_a or item.missing_in_set_b) else "ready",
                 created_at=item.created_at,
             )
             for item in items
@@ -188,6 +193,7 @@ class JobService:
             status=job.status.value,
             set_a_label=job.set_a_label,
             set_b_label=job.set_b_label,
+            has_diffs=job.has_diffs,
             created_at=job.created_at,
         )
 
@@ -200,6 +206,7 @@ class JobService:
                 status=job.status.value,
                 set_a_label=job.set_a_label,
                 set_b_label=job.set_b_label,
+                has_diffs=job.has_diffs,
                 created_at=job.created_at,
             )
             for job in jobs

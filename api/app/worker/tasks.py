@@ -14,6 +14,7 @@ from app.core.celery_app import celery_app
 from app.core.config import settings
 import app.models  # noqa: F401
 from app.features.jobs.models import Job, JobFile, JobPageResult, JobStatus, PageStatus
+from app.features.jobs.repository import JobFileRepository
 
 
 @celery_app.task(name="run_job")
@@ -170,6 +171,9 @@ async def _compare_page_async(page_result_id: str) -> None:
             page_result.diff_score = diff_score
             page_result.overlay_svg_path = str(overlay_path)
             page_result.status = PageStatus.done
+            if diff_score > 0:
+                job_file.has_diffs = True
+                job.has_diffs = True
             await session.commit()
             await _try_complete_job(session, job.id)
         except Exception as exc:  # pragma: no cover - runtime safety
@@ -201,6 +205,17 @@ async def _try_complete_job(session: AsyncSession, job_id: str) -> None:
         result = await session.execute(select(Job).where(Job.id == job_id))
         job = result.scalar_one_or_none()
         if job and job.status != JobStatus.cancelled:
+            file_repo = JobFileRepository(session)
+            await file_repo.update_has_diffs_for_job(job.id)
+            diff_any = await session.execute(
+                select(JobPageResult)
+                .join(JobFile, JobPageResult.job_file_id == JobFile.id)
+                .where(JobFile.job_id == job.id)
+                .where(JobPageResult.diff_score.is_not(None))
+                .where(JobPageResult.diff_score > 0)
+                .limit(1)
+            )
+            job.has_diffs = diff_any.scalar_one_or_none() is not None
             job.status = JobStatus.completed
             await session.commit()
 

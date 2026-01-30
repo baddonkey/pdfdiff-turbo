@@ -14,7 +14,7 @@ from app.features.auth.models import User
 from app.features.auth.security import decode_token
 from app.features.auth.repository import UserRepository
 from app.db.session import SessionLocal
-from app.features.jobs.deps import get_job_service, get_job_repository, get_job_file_repository
+from app.features.jobs.deps import get_job_service, get_job_repository, get_job_file_repository, get_job_page_result_repository
 from app.features.jobs.schemas import (
     JobCreatedMessage,
     JobFileMessage,
@@ -24,10 +24,26 @@ from app.features.jobs.schemas import (
     JobSummaryMessage,
 )
 from app.features.jobs.service import JobService
-from app.features.jobs.repository import JobRepository, JobPageResultRepository
+from app.features.jobs.repository import JobRepository, JobPageResultRepository, JobFileRepository
 from app.features.jobs.models import PageStatus
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
+
+
+def _status_from_counts(counts: dict[str, int], missing_a: bool, missing_b: bool) -> str:
+    if missing_a or missing_b:
+        return "missing"
+    running = counts.get(PageStatus.running.value, 0)
+    pending = counts.get(PageStatus.pending.value, 0)
+    failed = counts.get(PageStatus.failed.value, 0)
+    incompatible = counts.get(PageStatus.incompatible_size.value, 0)
+    if running or pending:
+        return "running"
+    if failed:
+        return "failed"
+    if incompatible:
+        return "incompatible"
+    return "completed"
 
 
 @router.websocket("/ws")
@@ -71,6 +87,7 @@ async def jobs_ws(
                         status=job.status.value,
                         set_a_label=job.set_a_label,
                         set_b_label=job.set_b_label,
+                        has_diffs=job.has_diffs,
                         created_at=job.created_at,
                     ).dict()
                     item["created_at"] = job.created_at.isoformat()
@@ -98,6 +115,67 @@ async def jobs_ws(
                         "running": running,
                         "pending": pending,
                     }
+            await websocket.send_json(payload)
+            await asyncio.sleep(2)
+    except WebSocketDisconnect:
+        return
+
+
+@router.websocket("/{job_id}/files/ws")
+async def job_files_ws(
+    websocket: WebSocket,
+    job_id: str,
+    token: str | None = Query(default=None),
+    user_repo: UserRepository = Depends(get_user_repository),
+) -> None:
+    if not token:
+        await websocket.close(code=1008)
+        return
+    try:
+        payload = decode_token(token)
+    except JWTError:
+        await websocket.close(code=1008)
+        return
+    if payload.get("type") != "access":
+        await websocket.close(code=1008)
+        return
+    user_id = payload.get("sub")
+    if not user_id:
+        await websocket.close(code=1008)
+        return
+    user = await user_repo.get_by_id(user_id)
+    if not user or not user.is_active:
+        await websocket.close(code=1008)
+        return
+
+    await websocket.accept()
+    try:
+        while True:
+            async with SessionLocal() as session:
+                repo = JobRepository(session)
+                file_repo = JobFileRepository(session)
+                page_repo = JobPageResultRepository(session)
+                job = await repo.get_by_id_and_user(job_id, user_id)
+                if not job:
+                    await websocket.send_json({"error": "Job not found"})
+                    await asyncio.sleep(2)
+                    continue
+                files = await file_repo.list_for_job(job.id)
+                diff_flags = await file_repo.diff_flags_for_job(job.id)
+                payload = []
+                for file in files:
+                    counts = dict(await page_repo.count_status_for_file(str(file.id)))
+                    payload.append(
+                        {
+                            "id": str(file.id),
+                            "relative_path": file.relative_path,
+                            "missing_in_set_a": file.missing_in_set_a,
+                            "missing_in_set_b": file.missing_in_set_b,
+                            "has_diffs": diff_flags.get(str(file.id), file.has_diffs),
+                            "status": _status_from_counts(counts, file.missing_in_set_a, file.missing_in_set_b),
+                            "created_at": file.created_at.isoformat(),
+                        }
+                    )
             await websocket.send_json(payload)
             await asyncio.sleep(2)
     except WebSocketDisconnect:
@@ -153,8 +231,8 @@ async def upload_job_files(
     job_id: str,
     set_name: str = Query("A", alias="set", pattern="^(A|B)$"),
     zip_file: UploadFile | None = File(default=None),
-    files: UploadFile | list[UploadFile] | None = File(default=None),
-    relative_paths: str | list[str] | None = Form(default=None),
+    files: list[UploadFile] = File(default=[]),
+    relative_paths: list[str] = Form(default=[]),
     service: JobService = Depends(get_job_service),
     repo=Depends(get_job_repository),
     user: User = Depends(get_current_user),
@@ -169,17 +247,10 @@ async def upload_job_files(
         return {"status": "ok", "mode": "zip"}
 
     if files:
-        file_list = files if isinstance(files, list) else [files]
-        path_list: list[str] = []
-        if isinstance(relative_paths, list):
-            path_list = relative_paths
-        elif isinstance(relative_paths, str):
-            path_list = [relative_paths]
-
-        if not path_list or len(path_list) != len(file_list):
+        if not relative_paths or len(relative_paths) != len(files):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="relative_paths required for multipart")
         payload = []
-        for upload, rel in zip(file_list, path_list):
+        for upload, rel in zip(files, relative_paths):
             payload.append((rel, await upload.read()))
         await service.upload_multipart(job, "setA" if set_name == "A" else "setB", payload)
         return {"status": "ok", "mode": "multipart"}
@@ -281,12 +352,20 @@ async def list_job_files(
     job_id: str,
     service: JobService = Depends(get_job_service),
     repo=Depends(get_job_repository),
+    file_repo=Depends(get_job_file_repository),
+    page_repo: JobPageResultRepository = Depends(get_job_page_result_repository),
     user: User = Depends(get_current_user),
 ) -> list[JobFileMessage]:
     job = await repo.get_by_id_and_user(job_id, str(user.id))
     if not job:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
-    return await service.list_files(job)
+    diff_flags = await file_repo.diff_flags_for_job(job.id)
+    items = await service.list_files(job)
+    for item in items:
+        item.has_diffs = diff_flags.get(item.id, item.has_diffs)
+        counts = dict(await page_repo.count_status_for_file(item.id))
+        item.status = _status_from_counts(counts, item.missing_in_set_a, item.missing_in_set_b)
+    return items
 
 
 @router.get("/{job_id}/files/{file_id}/pages", response_model=list[JobPageMessage])
