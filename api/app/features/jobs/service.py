@@ -2,8 +2,10 @@ import io
 import re
 import shutil
 import zipfile
+import json
 from pathlib import Path, PurePosixPath
 from typing import Iterable
+from datetime import datetime
 
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -395,3 +397,245 @@ class JobService:
         if set_name not in {"setA", "setB"}:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid set")
         return Path(settings.data_dir) / "jobs" / job_id / set_name
+
+    async def generate_report(self, job: Job) -> bytes:
+        """Generate a comprehensive PDF comparison report"""
+        from reportlab.lib.pagesizes import letter
+        from reportlab.lib.units import inch
+        from reportlab.pdfgen import canvas
+        from PIL import Image
+        
+        job_dir = Path(settings.data_dir) / "jobs" / str(job.id)
+        artifacts_dir = job_dir / "artifacts"
+        
+        # Collect all files and their diffs
+        files = await self._file_repo.list_for_job(job.id)
+        
+        # Create temporary directory for report files
+        report_dir = job_dir / "temp_report"
+        report_dir.mkdir(parents=True, exist_ok=True)
+        
+        try:
+            # Generate PDF report
+            pdf_path = report_dir / "diff_report.pdf"
+            c = canvas.Canvas(str(pdf_path), pagesize=letter)
+            width, height = letter
+            
+            # Title page
+            c.setFont("Helvetica-Bold", 24)
+            c.drawString(1*inch, height - 1.5*inch, "PDF Diff Report")
+            c.setFont("Helvetica", 12)
+            c.drawString(1*inch, height - 2*inch, f"Job ID: {self._display_id(job)}")
+            c.drawString(1*inch, height - 2.3*inch, f"Set A: {job.set_a_label or 'setA'}")
+            c.drawString(1*inch, height - 2.6*inch, f"Set B: {job.set_b_label or 'setB'}")
+            c.drawString(1*inch, height - 2.9*inch, f"Created: {job.created_at.strftime('%Y-%m-%d %H:%M:%S') if job.created_at else 'N/A'}")
+            c.drawString(1*inch, height - 3.2*inch, f"Status: {job.status.value}")
+            
+            c.showPage()
+            
+            # Process each file
+            for file_item in files:
+                
+                # Get pages for this file
+                pages = await self._page_repo.list_for_file(str(file_item.id))
+                
+                # Sort pages by page_index
+                pages = sorted(pages, key=lambda p: p.page_index)
+                
+                if pages:
+                    # File overview page
+                    c.setFont("Helvetica-Bold", 16)
+                    c.drawString(0.75*inch, height - 1*inch, f"File: {file_item.relative_path}")
+                    c.setFont("Helvetica", 11)
+                    y_pos = height - 1.5*inch
+                    
+                    if file_item.missing_in_set_a:
+                        c.drawString(0.75*inch, y_pos, "Status: Missing in Set A")
+                        y_pos -= 0.3*inch
+                    elif file_item.missing_in_set_b:
+                        c.drawString(0.75*inch, y_pos, "Status: Missing in Set B")
+                        y_pos -= 0.3*inch
+                    else:
+                        c.drawString(0.75*inch, y_pos, f"Total Pages: {len(pages)}")
+                        y_pos -= 0.3*inch
+                        
+                        diffs_count = sum(1 for p in pages if p.diff_score and p.diff_score > 0)
+                        c.drawString(0.75*inch, y_pos, f"Pages with Diffs: {diffs_count}")
+                        y_pos -= 0.3*inch
+                    
+                    c.showPage()
+                    
+                    # Process pages with diffs
+                    for page in pages:
+                        # Only show pages with diffs in PDF
+                        if page.diff_score and page.diff_score > 0 and page.overlay_svg_path:
+                            overlay_path = job_dir / "artifacts" / str(file_item.id) / f"page_{page.page_index}.svg"
+                            
+                            if overlay_path.exists():
+                                c.setFont("Helvetica-Bold", 14)
+                                c.drawString(0.75*inch, height - 1*inch, f"Page {page.page_index + 1} - Diff Score: {page.diff_score:.2f}")
+                                
+                                try:
+                                    import fitz
+                                    import numpy as np
+                                    from PIL import ImageDraw
+                                    import xml.etree.ElementTree as ET
+                                    
+                                    # Get PDF paths for both sets
+                                    pdf_path_a = job_dir / "setA" / file_item.set_a_path if file_item.set_a_path else None
+                                    pdf_path_b = job_dir / "setB" / file_item.set_b_path if file_item.set_b_path else None
+                                    
+                                    img_a = None
+                                    img_b = None
+                                    
+                                    # Render Set A
+                                    if pdf_path_a and pdf_path_a.exists():
+                                        with fitz.open(pdf_path_a) as doc:
+                                            if page.page_index < doc.page_count:
+                                                pdf_page = doc.load_page(page.page_index)
+                                                mat = fitz.Matrix(2.0, 2.0)
+                                                pix = pdf_page.get_pixmap(matrix=mat, alpha=False)
+                                                img_a = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+                                    
+                                    # Render Set B
+                                    if pdf_path_b and pdf_path_b.exists():
+                                        with fitz.open(pdf_path_b) as doc:
+                                            if page.page_index < doc.page_count:
+                                                pdf_page = doc.load_page(page.page_index)
+                                                mat = fitz.Matrix(2.0, 2.0)
+                                                pix = pdf_page.get_pixmap(matrix=mat, alpha=False)
+                                                img_b = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+                                    
+                                    # Parse SVG to get circle positions and determine scale factor
+                                    circles = []
+                                    tree = ET.parse(str(overlay_path))
+                                    root = tree.getroot()
+                                    ns = {'svg': 'http://www.w3.org/2000/svg'}
+                                    
+                                    # Get SVG viewBox dimensions
+                                    viewBox = root.get('viewBox', '0 0 1275 1650').split()
+                                    svg_width = float(viewBox[2])
+                                    svg_height = float(viewBox[3])
+                                    
+                                    # Calculate scale factor based on actual rendered image size
+                                    if img_a:
+                                        scale_x = img_a.size[0] / svg_width
+                                        scale_y = img_a.size[1] / svg_height
+                                    elif img_b:
+                                        scale_x = img_b.size[0] / svg_width
+                                        scale_y = img_b.size[1] / svg_height
+                                    else:
+                                        scale_x = scale_y = 1.0
+                                    
+                                    for circle in root.findall('.//svg:circle', ns) or root.findall('.//circle'):
+                                        circles.append({
+                                            'cx': float(circle.get('cx', 0)) * scale_x,
+                                            'cy': float(circle.get('cy', 0)) * scale_y,
+                                            'r': float(circle.get('r', 30)) * scale_x
+                                        })
+                                    
+                                    # Draw circles on both images
+                                    if img_a:
+                                        draw = ImageDraw.Draw(img_a)
+                                        for circ in circles:
+                                            draw.ellipse(
+                                                [circ['cx'] - circ['r'], circ['cy'] - circ['r'], 
+                                                 circ['cx'] + circ['r'], circ['cy'] + circ['r']],
+                                                outline='red', width=8
+                                            )
+                                    
+                                    if img_b:
+                                        draw = ImageDraw.Draw(img_b)
+                                        for circ in circles:
+                                            draw.ellipse(
+                                                [circ['cx'] - circ['r'], circ['cy'] - circ['r'], 
+                                                 circ['cx'] + circ['r'], circ['cy'] + circ['r']],
+                                                outline='red', width=8
+                                            )
+                                    
+                                    # Calculate bounding box around all circles with padding
+                                    if circles:
+                                        padding = 100  # pixels of padding around diffs
+                                        min_x = min(c['cx'] - c['r'] for c in circles) - padding
+                                        min_y = min(c['cy'] - c['r'] for c in circles) - padding
+                                        max_x = max(c['cx'] + c['r'] for c in circles) + padding
+                                        max_y = max(c['cy'] + c['r'] for c in circles) + padding
+                                        
+                                        # Ensure bounds are within image
+                                        if img_a:
+                                            min_x = max(0, min_x)
+                                            min_y = max(0, min_y)
+                                            max_x = min(img_a.size[0], max_x)
+                                            max_y = min(img_a.size[1], max_y)
+                                            
+                                            # Crop to diff region
+                                            img_a = img_a.crop((min_x, min_y, max_x, max_y))
+                                        
+                                        if img_b:
+                                            img_b = img_b.crop((min_x, min_y, max_x, max_y))
+                                    
+                                    # Layout: Show both images side by side if both exist
+                                    if img_a and img_b:
+                                        # Save both images as JPEG for smaller file size
+                                        img_a_file = report_dir / f"page_a_{file_item.id}_{page.page_index}.jpg"
+                                        img_b_file = report_dir / f"page_b_{file_item.id}_{page.page_index}.jpg"
+                                        img_a.save(img_a_file, 'JPEG', quality=85, optimize=True)
+                                        img_b.save(img_b_file, 'JPEG', quality=85, optimize=True)
+                                        
+                                        # Calculate dimensions - each image gets half the width
+                                        img_width, img_height = img_a.size
+                                        max_width = 3 * inch  # Half page for each
+                                        max_height = 7 * inch
+                                        scale = min(max_width / img_width, max_height / img_height)
+                                        
+                                        final_width = img_width * scale
+                                        final_height = img_height * scale
+                                        
+                                        y_pos = height - 1.5*inch - final_height
+                                        
+                                        # Draw Set A on left
+                                        c.drawString(0.75*inch, height - 1.3*inch, f"Set A: {job.set_a_label or 'setA'}")
+                                        c.drawImage(str(img_a_file), 0.75*inch, y_pos, width=final_width, height=final_height)
+                                        
+                                        # Draw Set B on right
+                                        c.drawString(4.25*inch, height - 1.3*inch, f"Set B: {job.set_b_label or 'setB'}")
+                                        c.drawImage(str(img_b_file), 4.25*inch, y_pos, width=final_width, height=final_height)
+                                    
+                                    elif img_a or img_b:
+                                        # Only one version available
+                                        img = img_a or img_b
+                                        label = f"Set A: {job.set_a_label or 'setA'}" if img_a else f"Set B: {job.set_b_label or 'setB'}"
+                                        img_file = report_dir / f"page_{file_item.id}_{page.page_index}.jpg"
+                                        img.save(img_file, 'JPEG', quality=85, optimize=True)
+                                        
+                                        img_width, img_height = img.size
+                                        max_width = 6.5 * inch
+                                        max_height = 8 * inch
+                                        scale = min(max_width / img_width, max_height / img_height)
+                                        
+                                        final_width = img_width * scale
+                                        final_height = img_height * scale
+                                        
+                                        c.drawString(0.75*inch, height - 1.3*inch, label)
+                                        c.drawImage(str(img_file), 0.75*inch, height - 1.5*inch - final_height, 
+                                                  width=final_width, height=final_height)
+                                    else:
+                                        c.setFont("Helvetica", 10)
+                                        c.drawString(0.75*inch, height - 2*inch, "No PDF files found")
+                                        
+                                except Exception as e:
+                                    c.setFont("Helvetica", 10)
+                                    c.drawString(0.75*inch, height - 2*inch, f"Error: {str(e)}")
+                                
+                                c.showPage()
+            
+            c.save()
+            
+            # Return PDF bytes directly
+            with open(pdf_path, 'rb') as f:
+                return f.read()
+            
+        finally:
+            # Cleanup temp directory
+            if report_dir.exists():
+                shutil.rmtree(report_dir)

@@ -455,3 +455,23 @@ async def get_file_content(
     if not target.exists():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
     return FileResponse(path=str(target), media_type="application/pdf")
+
+
+@router.get("/{job_id}/report")
+async def get_job_report(
+    job_id: str,
+    service: JobService = Depends(get_job_service),
+    repo=Depends(get_job_repository),
+    user: User = Depends(get_current_user),
+) -> Response:
+    job = await repo.get_by_id_and_user(job_id, str(user.id))
+    if not job:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
+    
+    report_bytes = await service.generate_report(job)
+    
+    return Response(
+        content=report_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=diff-report-{job_id}.pdf"}
+    )

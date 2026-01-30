@@ -74,6 +74,13 @@ import { TopbarActionsService } from '../../core/topbar-actions.service';
                 </div>
                 <div style="display:flex; gap: 8px;">
                   <button class="btn secondary" (click)="openJobDetails(job.id)">Compare</button>
+                  <button 
+                    class="btn secondary" 
+                    (click)="downloadReport(job.id)"
+                    [disabled]="generatingReport[job.id]"
+                  >
+                    {{ generatingReport[job.id] ? 'Generating...' : 'Report' }}
+                  </button>
                   <button
                     class="btn"
                     *ngIf="hasPending(getRecentProgress(job))"
@@ -189,6 +196,7 @@ export class JobsComponent implements OnInit, AfterViewInit, OnDestroy {
   error = '';
   jobProgress: import('../../core/jobs.service').JobProgress | null = null;
   recentProgress: Record<string, import('../../core/jobs.service').JobProgress> = {};
+  generatingReport: Record<string, boolean> = {};
 
   constructor(private jobsService: JobsService, private topbar: TopbarActionsService, private router: Router) {}
 
@@ -567,6 +575,30 @@ export class JobsComponent implements OnInit, AfterViewInit, OnDestroy {
         this.setTab('jobs');
         this.selectJob(jobId);
         this.error = 'Failed to load job files.';
+      }
+    });
+  }
+
+  downloadReport(jobId: string) {
+    this.generatingReport = { ...this.generatingReport, [jobId]: true };
+    this.message = '';
+    this.error = '';
+    this.jobsService.downloadReport(jobId).subscribe({
+      next: (blob: Blob) => {
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `diff-report-${jobId}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        this.generatingReport = { ...this.generatingReport, [jobId]: false };
+        this.message = 'Report downloaded successfully.';
+      },
+      error: (err: any) => {
+        this.generatingReport = { ...this.generatingReport, [jobId]: false };
+        this.error = this.formatError(err, 'Failed to generate report.');
       }
     });
   }

@@ -111,7 +111,7 @@ a {
   grid-template-columns: 1fr 1fr;
   gap: 20px;
   align-items: start;
-  overflow: auto;
+  overflow: hidden;
   flex: 1;
   min-height: 0;
 }

@@ -244,4 +244,9 @@ export class JobsService {
   getFileContent(jobId: string, fileId: string, setName: 'A' | 'B') {
     return `${this.baseUrl}/jobs/${jobId}/files/${fileId}/content?set=${setName}`;
   }
+
+  downloadReport(jobId: string) {
+    const timestamp = Date.now();
+    return this.http.get(`${this.baseUrl}/jobs/${jobId}/report?t=${timestamp}`, { responseType: 'blob' });
+  }
 }
