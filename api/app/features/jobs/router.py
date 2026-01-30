@@ -13,6 +13,7 @@ from app.features.auth.deps import get_current_user, get_user_repository
 from app.features.auth.models import User
 from app.features.auth.security import decode_token
 from app.features.auth.repository import UserRepository
+from app.db.session import SessionLocal
 from app.features.jobs.deps import get_job_service, get_job_repository, get_job_file_repository
 from app.features.jobs.schemas import (
     JobCreatedMessage,
@@ -23,6 +24,7 @@ from app.features.jobs.schemas import (
     JobSummaryMessage,
 )
 from app.features.jobs.service import JobService
+from app.features.jobs.repository import JobRepository
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
@@ -31,7 +33,6 @@ router = APIRouter(prefix="/jobs", tags=["jobs"])
 async def jobs_ws(
     websocket: WebSocket,
     token: str | None = Query(default=None),
-    service: JobService = Depends(get_job_service),
     user_repo: UserRepository = Depends(get_user_repository),
 ) -> None:
     if not token:
@@ -58,8 +59,13 @@ async def jobs_ws(
     last_payload: list[dict] | None = None
     try:
         while True:
-            jobs = await service.list_jobs(user_id)
-            payload = [job.dict() for job in jobs]
+            async with SessionLocal() as session:
+                repo = JobRepository(session)
+                jobs = await repo.list_for_user(user_id)
+                payload = [
+                    JobSummaryMessage(id=str(job.id), status=job.status.value, created_at=job.created_at).dict()
+                    for job in jobs
+                ]
             if payload != last_payload:
                 await websocket.send_json(payload)
                 last_payload = payload

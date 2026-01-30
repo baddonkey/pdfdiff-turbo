@@ -62,35 +62,46 @@ export class JobsService {
 
   watchJobs(): Observable<JobSummary[]> {
     return new Observable<JobSummary[]>(subscriber => {
-      const token = localStorage.getItem('access_token');
-      if (!token) {
-        subscriber.next([]);
-        subscriber.complete();
-        return;
-      }
-      const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-      const wsUrl = `${protocol}://${window.location.host}/api/jobs/ws?token=${encodeURIComponent(token)}`;
-      const ws = new WebSocket(wsUrl);
+      let ws: WebSocket | null = null;
+      let closedByUser = false;
+      let reconnectTimer: number | null = null;
 
-      ws.onmessage = event => {
-        try {
-          const data = JSON.parse(event.data) as JobSummary[];
-          subscriber.next(data);
-        } catch {
-          // ignore malformed payloads
+      const connect = () => {
+        const token = localStorage.getItem('access_token');
+        if (!token) {
+          return;
         }
+        const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+        const wsUrl = `${protocol}://${window.location.host}/api/jobs/ws?token=${encodeURIComponent(token)}`;
+        ws = new WebSocket(wsUrl);
+
+        ws.onmessage = event => {
+          try {
+            const data = JSON.parse(event.data) as JobSummary[];
+            subscriber.next(data);
+          } catch {
+            // ignore malformed payloads
+          }
+        };
+
+        ws.onerror = () => {
+          ws?.close();
+        };
+
+        ws.onclose = () => {
+          if (closedByUser) return;
+          reconnectTimer = window.setTimeout(connect, 1500);
+        };
       };
 
-      ws.onerror = () => {
-        // keep the stream open for reconnects handled by the caller
-      };
-
-      ws.onclose = () => {
-        subscriber.complete();
-      };
+      connect();
 
       return () => {
-        ws.close();
+        closedByUser = true;
+        if (reconnectTimer) {
+          clearTimeout(reconnectTimer);
+        }
+        ws?.close();
       };
     });
   }
