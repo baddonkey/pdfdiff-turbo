@@ -32,8 +32,8 @@ import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
         {{ loadError }}
       </div>
 
-      <div class="grid" style="grid-template-columns: 320px 1fr; gap: 16px; align-items: start;" *ngIf="!loadError">
-        <div class="card" style="padding: 12px; max-height: 70vh; overflow:auto;">
+      <div class="grid" style="grid-template-columns: 320px 1fr; gap: 16px; align-items: start; flex: 1; min-height: 0;" *ngIf="!loadError">
+        <div class="card" style="padding: 12px; overflow:auto;">
           <div style="display:flex; justify-content: space-between; align-items:center; margin-bottom: 8px;">
             <strong>Files</strong>
             <span style="font-size: 12px; color:#64748b;">{{ files.length }}</span>
@@ -71,7 +71,7 @@ import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
           </table>
         </div>
 
-        <div>
+        <div style="display: flex; flex-direction: column; flex: 1; min-height: 0;">
           <div class="viewer-grid">
             <div
               class="canvas-wrap"
@@ -188,6 +188,14 @@ export class ViewerComponent implements OnInit, OnDestroy {
         this.loadFilePages();
       }
     });
+  }
+
+  @HostListener('window:resize')
+  onWindowResize() {
+    // Re-render PDFs when window is resized to recalculate scale
+    if (this.pdfA && this.pdfB) {
+      this.renderPage();
+    }
   }
 
   get currentFile(): JobFile | null {
@@ -373,7 +381,23 @@ export class ViewerComponent implements OnInit, OnDestroy {
     }
     const page = await pdf.getPage(pageNumber);
     const viewport1 = page.getViewport({ scale: 1 });
-    const viewport = page.getViewport({ scale: 1.2 });
+    
+    // Calculate scale to fit within both viewport height and width
+    // Height: Account for all UI elements: topbar, header, pagination, padding, borders, margins
+    const reservedHeight = 340;
+    const availableHeight = window.innerHeight - reservedHeight;
+    const scaleToFitHeight = availableHeight / viewport1.height;
+    
+    // Width: Account for sidebar (320px), gap (16px), padding (48px), borders, margin (48px)
+    const reservedWidth = 480;
+    const availableWidthPerCanvas = (window.innerWidth - reservedWidth) / 2;
+    const scaleToFitWidth = availableWidthPerCanvas / viewport1.width;
+    
+    // Use the smaller of the two scales to ensure it fits in both dimensions
+    const scaleToFit = Math.min(scaleToFitHeight, scaleToFitWidth);
+    const finalScale = Math.min(Math.max(scaleToFit, 0.5), 3); // clamp between 0.5 and 3
+    
+    const viewport = page.getViewport({ scale: finalScale });
     const context = canvas.getContext('2d');
     if (!context) throw new Error('Canvas context missing');
     canvas.height = viewport.height;
