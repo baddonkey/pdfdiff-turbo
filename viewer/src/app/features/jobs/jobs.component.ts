@@ -170,7 +170,7 @@ export class JobsComponent implements OnInit, AfterViewInit, OnDestroy {
     return this.jobList.find(job => job.id === this.jobId) || null;
   }
   get recentJobs() {
-    return this.jobList.slice(0, 5);
+    return this.jobList.slice(0, 4);
   }
   private dropFilesA: { file: File; relPath: string }[] = [];
   private dropFilesB: { file: File; relPath: string }[] = [];
