@@ -68,8 +68,7 @@ import { TopbarActionsService } from '../../core/topbar-actions.service';
                   </div>
                 </div>
                 <div style="display:flex; gap: 8px;">
-                  <button class="btn secondary" (click)="selectJob(job.id)">View Files</button>
-                  <button class="btn" (click)="startComparison(job.id)">Start Comparison</button>
+                  <button class="btn secondary" (click)="openJobDetails(job.id)">Job Details</button>
                 </div>
               </div>
             </div>
@@ -95,8 +94,7 @@ import { TopbarActionsService } from '../../core/topbar-actions.service';
               </div>
             </div>
             <div style="display:flex; gap: 8px;">
-              <button class="btn secondary" (click)="selectJob(job.id)">View Files</button>
-              <button class="btn" (click)="startComparison(job.id)">Start Comparison</button>
+              <button class="btn secondary" (click)="openJobDetails(job.id)">Job Details</button>
             </div>
           </div>
         </div>
@@ -176,7 +174,7 @@ export class JobsComponent implements OnInit, AfterViewInit, OnDestroy {
     this.loadJobs();
     this.jobsSub = this.jobsService.watchJobs().subscribe({
       next: jobs => {
-        this.jobList = jobs;
+        this.jobList = this.sortJobs(jobs);
       }
     });
   }
@@ -215,6 +213,7 @@ export class JobsComponent implements OnInit, AfterViewInit, OnDestroy {
                   next: () => {
                     this.uploading = false;
                     this.message = 'Upload complete. Job started.';
+                    this.loadJobs();
                     this.loadFiles();
                   },
                   error: (err: any) => {
@@ -256,6 +255,7 @@ export class JobsComponent implements OnInit, AfterViewInit, OnDestroy {
               next: () => {
                 this.uploading = false;
                 this.message = 'Zip upload complete. Job started.';
+                this.loadJobs();
                 this.loadFiles();
               },
               error: (err: any) => {
@@ -456,12 +456,21 @@ export class JobsComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   loadJobs() {
-    this.jobsService.listJobs().subscribe((jobs: JobSummary[]) => (this.jobList = jobs));
+    this.jobsService.listJobs().subscribe((jobs: JobSummary[]) => (this.jobList = this.sortJobs(jobs)));
+  }
+  
+  private sortJobs(jobs: JobSummary[]) {
+    return [...jobs].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   }
 
   selectJob(jobId: string) {
     this.jobId = jobId;
     this.loadFiles();
+  }
+
+  openJobDetails(jobId: string) {
+    this.setTab('jobs');
+    this.selectJob(jobId);
   }
 
   loadProgress() {
