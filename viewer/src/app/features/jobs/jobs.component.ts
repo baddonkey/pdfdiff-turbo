@@ -16,14 +16,14 @@ import { TopbarActionsService } from '../../core/topbar-actions.service';
         <div style="display:flex; gap: 8px;">
           <button
             class="btn secondary"
-            [style.background]="activeTab === 'dropzone' ? '#2563eb' : '#e2e8f0'"
-            [style.color]="activeTab === 'dropzone' ? '#fff' : '#0f172a'"
+            [style.background]="activeTab === 'dropzone' ? 'var(--theme-primary)' : 'var(--theme-secondary)'"
+            [style.color]="activeTab === 'dropzone' ? 'var(--theme-primary-contrast)' : 'var(--theme-primary)'"
             (click)="setTab('dropzone')"
           >Dropzone</button>
           <button
             class="btn secondary"
-            [style.background]="activeTab === 'jobs' ? '#2563eb' : '#e2e8f0'"
-            [style.color]="activeTab === 'jobs' ? '#fff' : '#0f172a'"
+            [style.background]="activeTab === 'jobs' ? 'var(--theme-primary)' : 'var(--theme-secondary)'"
+            [style.color]="activeTab === 'jobs' ? 'var(--theme-primary-contrast)' : 'var(--theme-primary)'"
             (click)="setTab('jobs')"
           >Jobs</button>
         </div>
@@ -33,7 +33,7 @@ import { TopbarActionsService } from '../../core/topbar-actions.service';
           <div
             class="card"
             style="padding: 0; min-height: 260px; width: 100%; max-width: 760px; margin: 0 auto; border: 2px dashed #cbd5f5; background: #f8fafc; display:flex; flex-direction:column; text-align:center;"
-            [style.borderColor]="dragActive ? '#2563eb' : '#cbd5f5'"
+            [style.borderColor]="dragActive ? 'var(--theme-primary)' : '#cbd5f5'"
             (dragover)="onDragOver($event)"
             (dragleave)="onDragLeave($event)"
             (drop)="onDrop($event)"
@@ -62,13 +62,33 @@ import { TopbarActionsService } from '../../core/topbar-actions.service';
             <div *ngFor="let job of recentJobs" class="card" style="margin-top: 10px;">
               <div style="display:flex; justify-content: space-between; align-items:center;">
                 <div>
-                  <strong>{{ job.id }}</strong>
-                  <div>
-                    <span class="badge" [ngClass]="statusBadge(job.status)">{{ job.status }}</span>
+                  <strong>{{ job.display_id || job.id }}</strong>
+                  <div style="font-size: 12px; color:#64748b; margin-top: 4px;">
+                    Set A: {{ job.set_a_label || 'setA' }} · Set B: {{ job.set_b_label || 'setB' }}
+                  </div>
+                  <div style="font-size: 12px; color:#94a3b8; margin-top: 4px;">
+                    Created: {{ formatDate(job.created_at) }}
                   </div>
                 </div>
                 <div style="display:flex; gap: 8px;">
                   <button class="btn secondary" (click)="openJobDetails(job.id)">Job Details</button>
+                </div>
+              </div>
+              <div *ngIf="getRecentProgress(job) as progress" style="margin-top: 10px;">
+                <div style="display:flex; justify-content: space-between; align-items:center; font-size: 12px; color:#475569;">
+                  <strong>Progress</strong>
+                  <span>{{ progress.percent }}%</span>
+                </div>
+                <div style="height: 8px; background:#e2e8f0; border-radius:999px; overflow:hidden; margin: 6px 0 8px;">
+                  <div [style.width.%]="progress.percent" style="height: 100%; background: var(--theme-primary);"></div>
+                </div>
+                <div style="display:flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color:#475569;">
+                  <span>Done: {{ progress.completed }}</span>
+                  <span>Running: {{ progress.running }}</span>
+                  <span>Pending: {{ progress.pending }}</span>
+                  <span>Missing: {{ progress.missing }}</span>
+                  <span>Incompatible: {{ progress.incompatible }}</span>
+                  <span>Failed: {{ progress.failed }}</span>
                 </div>
               </div>
             </div>
@@ -88,7 +108,13 @@ import { TopbarActionsService } from '../../core/topbar-actions.service';
         <div *ngFor="let job of jobList" class="card" style="margin-top: 12px;">
           <div style="display:flex; justify-content: space-between; align-items:center;">
             <div>
-              <strong>{{ job.id }}</strong>
+                  <strong>{{ job.display_id || job.id }}</strong>
+                  <div style="font-size: 12px; color:#64748b; margin-top: 4px;">
+                    Set A: {{ job.set_a_label || 'setA' }} · Set B: {{ job.set_b_label || 'setB' }}
+                  </div>
+                  <div style="font-size: 12px; color:#94a3b8; margin-top: 4px;">
+                    Created: {{ formatDate(job.created_at) }}
+                  </div>
               <div>
                 <span class="badge" [ngClass]="statusBadge(job.status)">{{ job.status }}</span>
               </div>
@@ -102,7 +128,14 @@ import { TopbarActionsService } from '../../core/topbar-actions.service';
     </div>
 
     <div *ngIf="activeTab === 'jobs'" class="card" style="margin-top:16px;">
-      <h2>Job Files</h2>
+        <div style="display:flex; justify-content: space-between; align-items:flex-start; gap: 12px;">
+          <div>
+            <h2 style="margin: 0;">Job Files</h2>
+            <div *ngIf="selectedJob" style="margin-top: 6px; font-size: 13px; color:#475569;">
+              {{ selectedJob.display_id || selectedJob.id }} · Set A: {{ selectedJob.set_a_label || 'setA' }} · Set B: {{ selectedJob.set_b_label || 'setB' }}
+            </div>
+          </div>
+        </div>
       <div *ngIf="jobProgress" style="margin-bottom: 12px;">
         <div style="display:flex; justify-content: space-between; align-items:center;">
           <strong>Progress</strong>
@@ -150,6 +183,9 @@ export class JobsComponent implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild('topbarActions', { static: true }) topbarActionsTpl!: TemplateRef<any>;
   activeTab: 'dropzone' | 'jobs' = 'dropzone';
   private jobsSub?: Subscription;
+  get selectedJob() {
+    return this.jobList.find(job => job.id === this.jobId) || null;
+  }
   get recentJobs() {
     return this.jobList.slice(0, 5);
   }
@@ -161,12 +197,15 @@ export class JobsComponent implements OnInit, AfterViewInit, OnDestroy {
   filesA: File[] = [];
   filesB: File[] = [];
   zipFile: File | null = null;
+  setALabel: string | null = null;
+  setBLabel: string | null = null;
   dragActive = false;
   uploadStripSegments = 1;
   uploading = false;
   message = '';
   error = '';
   jobProgress: import('../../core/jobs.service').JobProgress | null = null;
+  recentProgress: Record<string, import('../../core/jobs.service').JobProgress> = {};
 
   constructor(private jobsService: JobsService, private topbar: TopbarActionsService) {}
 
@@ -175,6 +214,7 @@ export class JobsComponent implements OnInit, AfterViewInit, OnDestroy {
     this.jobsSub = this.jobsService.watchJobs().subscribe({
       next: jobs => {
         this.jobList = this.sortJobs(jobs);
+        this.refreshRecentProgressForMissing();
       }
     });
   }
@@ -209,7 +249,7 @@ export class JobsComponent implements OnInit, AfterViewInit, OnDestroy {
               : this.jobsService.uploadFolder(job.id, 'B', this.filesB, this.uploadStripSegments);
             uploadB.subscribe({
               next: () => {
-                this.jobsService.startJob(job.id).subscribe({
+                this.jobsService.startJob(job.id, this.setALabel, this.setBLabel).subscribe({
                   next: () => {
                     this.uploading = false;
                     this.message = 'Upload complete. Job started.';
@@ -251,7 +291,7 @@ export class JobsComponent implements OnInit, AfterViewInit, OnDestroy {
         this.jobId = job.id;
         this.jobsService.uploadZipSets(job.id, this.zipFile as File).subscribe({
           next: () => {
-            this.jobsService.startJob(job.id).subscribe({
+            this.jobsService.startJob(job.id, this.setALabel, this.setBLabel).subscribe({
               next: () => {
                 this.uploading = false;
                 this.message = 'Zip upload complete. Job started.';
@@ -327,6 +367,8 @@ export class JobsComponent implements OnInit, AfterViewInit, OnDestroy {
       this.dropFilesA = [];
       this.dropFilesB = [];
       this.uploadStripSegments = 1;
+      this.setALabel = null;
+      this.setBLabel = null;
       this.message = `Zip selected: ${files[0].file.name}`;
       return;
     }
@@ -342,6 +384,8 @@ export class JobsComponent implements OnInit, AfterViewInit, OnDestroy {
 
     if (topFolders.length >= 2) {
       const [aFolder, bFolder] = topFolders;
+      this.setALabel = aFolder;
+      this.setBLabel = bFolder;
       this.dropFilesA = files
         .filter(item => item.relPath.startsWith(`${aFolder}/`))
         .map(item => ({ file: item.file, relPath: this.stripPath(item.relPath, 1) }));
@@ -367,6 +411,8 @@ export class JobsComponent implements OnInit, AfterViewInit, OnDestroy {
 
       if (secondFolders.length >= 2) {
         const [aFolder, bFolder] = secondFolders;
+        this.setALabel = aFolder;
+        this.setBLabel = bFolder;
         this.dropFilesA = files
           .filter(item => item.relPath.includes(`/${aFolder}/`))
           .map(item => ({ file: item.file, relPath: this.stripPath(item.relPath, 2) }));
@@ -456,7 +502,31 @@ export class JobsComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   loadJobs() {
-    this.jobsService.listJobs().subscribe((jobs: JobSummary[]) => (this.jobList = this.sortJobs(jobs)));
+    this.jobsService.listJobs().subscribe((jobs: JobSummary[]) => {
+      this.jobList = this.sortJobs(jobs);
+      this.refreshRecentProgressForMissing();
+    });
+  }
+
+  getRecentProgress(job: JobSummary) {
+    return job.progress || this.recentProgress[job.id] || null;
+  }
+
+  private refreshRecentProgressForMissing() {
+    const ids = this.recentJobs
+      .filter(job => !job.progress)
+      .map(job => job.id);
+    if (ids.length === 0) return;
+    ids.forEach(jobId => {
+      this.jobsService.getJobProgress(jobId).subscribe({
+        next: progress => {
+          this.recentProgress = { ...this.recentProgress, [jobId]: progress };
+        },
+        error: () => {
+          // ignore missing progress
+        }
+      });
+    });
   }
   
   private sortJobs(jobs: JobSummary[]) {
@@ -535,5 +605,11 @@ export class JobsComponent implements OnInit, AfterViewInit, OnDestroy {
     if (status === 'failed' || status === 'cancelled') return 'badge danger';
     if (status === 'running') return 'badge warn';
     return 'badge neutral';
+  }
+
+  formatDate(value: string) {
+    if (!value) return '';
+    const date = new Date(value);
+    return isNaN(date.getTime()) ? value : date.toLocaleString();
   }
 }

@@ -24,7 +24,8 @@ from app.features.jobs.schemas import (
     JobSummaryMessage,
 )
 from app.features.jobs.service import JobService
-from app.features.jobs.repository import JobRepository
+from app.features.jobs.repository import JobRepository, JobPageResultRepository
+from app.features.jobs.models import PageStatus
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
@@ -56,19 +57,48 @@ async def jobs_ws(
         return
 
     await websocket.accept()
-    last_payload: list[dict] | None = None
     try:
         while True:
             async with SessionLocal() as session:
                 repo = JobRepository(session)
+                page_repo = JobPageResultRepository(session)
                 jobs = await repo.list_for_user(user_id)
-                payload = [
-                    JobSummaryMessage(id=str(job.id), status=job.status.value, created_at=job.created_at).dict()
-                    for job in jobs
-                ]
-            if payload != last_payload:
-                await websocket.send_json(payload)
-                last_payload = payload
+                payload = []
+                for job in jobs:
+                    item = JobSummaryMessage(
+                        id=str(job.id),
+                        display_id=JobService._display_id(job),
+                        status=job.status.value,
+                        set_a_label=job.set_a_label,
+                        set_b_label=job.set_b_label,
+                        created_at=job.created_at,
+                    ).dict()
+                    item["created_at"] = job.created_at.isoformat()
+                    payload.append(item)
+                for item, job in zip(payload, jobs):
+                    counts = dict(await page_repo.count_status_for_job(job.id))
+                    total = sum(counts.values())
+                    completed = counts.get(PageStatus.done.value, 0)
+                    missing = counts.get(PageStatus.missing.value, 0)
+                    incompatible = counts.get(PageStatus.incompatible_size.value, 0)
+                    failed = counts.get(PageStatus.failed.value, 0)
+                    running = counts.get(PageStatus.running.value, 0)
+                    pending = counts.get(PageStatus.pending.value, 0)
+                    finished = completed + missing + incompatible + failed
+                    percent = int((finished / total) * 100) if total else 0
+                    item["progress"] = {
+                        "total": total,
+                        "finished": finished,
+                        "percent": percent,
+                        "counts": counts,
+                        "completed": completed,
+                        "missing": missing,
+                        "incompatible": incompatible,
+                        "failed": failed,
+                        "running": running,
+                        "pending": pending,
+                    }
+            await websocket.send_json(payload)
             await asyncio.sleep(2)
     except WebSocketDisconnect:
         return
@@ -191,6 +221,8 @@ async def use_sample_set(
 @router.post("/{job_id}/start", response_model=JobStartedMessage)
 async def start_job(
     job_id: str,
+    set_a_label: str | None = Query(default=None, alias="setA"),
+    set_b_label: str | None = Query(default=None, alias="setB"),
     service: JobService = Depends(get_job_service),
     repo=Depends(get_job_repository),
     user: User = Depends(get_current_user),
@@ -198,6 +230,10 @@ async def start_job(
     job = await repo.get_by_id_and_user(job_id, str(user.id))
     if not job:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
+    if set_a_label:
+        job.set_a_label = set_a_label
+    if set_b_label:
+        job.set_b_label = set_b_label
     return await service.start_job(job)
 
 

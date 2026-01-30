@@ -1,4 +1,5 @@
 import io
+import re
 import shutil
 import zipfile
 from pathlib import Path, PurePosixPath
@@ -40,7 +41,14 @@ class JobService:
         self._job_repo.add(job)
         await self._session.commit()
         await self._session.refresh(job)
-        return JobCreatedMessage(id=str(job.id), status=job.status.value, created_at=job.created_at)
+        return JobCreatedMessage(
+            id=str(job.id),
+            display_id=self._display_id(job),
+            status=job.status.value,
+            set_a_label=job.set_a_label,
+            set_b_label=job.set_b_label,
+            created_at=job.created_at,
+        )
 
     async def upload_zip(self, job: Job, set_name: str, zip_bytes: bytes) -> None:
         target_dir = self._job_dir(str(job.id), set_name)
@@ -74,6 +82,8 @@ class JobService:
                 )
 
             folder_a, folder_b = top_folders[0], top_folders[1]
+            job.set_a_label = folder_a
+            job.set_b_label = folder_b
             count_a = 0
             count_b = 0
 
@@ -102,6 +112,7 @@ class JobService:
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Zip must include files in two top-level folders",
                 )
+        await self._session.commit()
 
     async def upload_multipart(self, job: Job, set_name: str, files: Iterable[tuple[str, bytes]]) -> None:
         target_dir = self._job_dir(str(job.id), set_name)
@@ -171,12 +182,26 @@ class JobService:
         ]
 
     async def get_status(self, job: Job) -> JobStatusMessage:
-        return JobStatusMessage(id=str(job.id), status=job.status.value, created_at=job.created_at)
+        return JobStatusMessage(
+            id=str(job.id),
+            display_id=self._display_id(job),
+            status=job.status.value,
+            set_a_label=job.set_a_label,
+            set_b_label=job.set_b_label,
+            created_at=job.created_at,
+        )
 
     async def list_jobs(self, user_id: str) -> list[JobSummaryMessage]:
         jobs = await self._job_repo.list_for_user(user_id)
         return [
-            JobSummaryMessage(id=str(job.id), status=job.status.value, created_at=job.created_at)
+            JobSummaryMessage(
+                id=str(job.id),
+                display_id=self._display_id(job),
+                status=job.status.value,
+                set_a_label=job.set_a_label,
+                set_b_label=job.set_b_label,
+                created_at=job.created_at,
+            )
             for job in jobs
         ]
 
@@ -239,7 +264,24 @@ class JobService:
                 dest.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(src, dest)
 
+        job.set_a_label = f"{sample_name}-A"
+        job.set_b_label = f"{sample_name}-B"
+        await self._session.commit()
         return {"status": "ok"}
+
+    @staticmethod
+    def _sanitize_label(label: str, fallback: str) -> str:
+        if not label:
+            return fallback
+        cleaned = re.sub(r"[^A-Za-z0-9_-]+", "-", label.strip())
+        return cleaned.strip("-") or fallback
+
+    @staticmethod
+    def _display_id(job: Job) -> str:
+        ts = job.created_at.strftime("%Y%m%d-%H%M")
+        set_a = JobService._sanitize_label(job.set_a_label or "", "setA")
+        set_b = JobService._sanitize_label(job.set_b_label or "", "setB")
+        return f"{ts}-{set_a}_{set_b}"
 
     async def cancel_job(self, job: Job) -> JobStatusMessage:
         job.status = JobStatus.cancelled

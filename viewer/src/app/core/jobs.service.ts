@@ -11,8 +11,12 @@ export interface JobFile {
 
 export interface JobSummary {
   id: string;
+  display_id: string;
   status: string;
+  set_a_label?: string | null;
+  set_b_label?: string | null;
   created_at: string;
+  progress?: JobProgress;
 }
 
 export interface JobPage {
@@ -150,8 +154,12 @@ export class JobsService {
     return this.http.post(`${this.baseUrl}/jobs/${jobId}/upload-zip`, form);
   }
 
-  startJob(jobId: string) {
-    return this.http.post(`${this.baseUrl}/jobs/${jobId}/start`, {});
+  startJob(jobId: string, setALabel?: string | null, setBLabel?: string | null) {
+    const params: string[] = [];
+    if (setALabel) params.push(`setA=${encodeURIComponent(setALabel)}`);
+    if (setBLabel) params.push(`setB=${encodeURIComponent(setBLabel)}`);
+    const qs = params.length ? `?${params.join('&')}` : '';
+    return this.http.post(`${this.baseUrl}/jobs/${jobId}/start${qs}`, {});
   }
 
   listFiles(jobId: string) {

@@ -4,7 +4,10 @@ from pydantic import BaseModel
 
 class JobCreatedMessage(BaseModel):
     id: str
+    display_id: str
     status: str
+    set_a_label: str | None = None
+    set_b_label: str | None = None
     created_at: datetime
 
 
@@ -15,13 +18,19 @@ class JobStartedMessage(BaseModel):
 
 class JobStatusMessage(BaseModel):
     id: str
+    display_id: str
     status: str
+    set_a_label: str | None = None
+    set_b_label: str | None = None
     created_at: datetime
 
 
 class JobSummaryMessage(BaseModel):
     id: str
+    display_id: str
     status: str
+    set_a_label: str | None = None
+    set_b_label: str | None = None
     created_at: datetime
 
 
