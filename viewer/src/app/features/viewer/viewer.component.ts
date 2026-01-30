@@ -1,7 +1,7 @@
-import { Component, ElementRef, HostListener, OnDestroy, OnInit, ViewChild, Renderer2 } from '@angular/core';
+import { Component, ElementRef, HostListener, OnDestroy, OnInit, ViewChild, Renderer2, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
-import { JobsService, JobFile, JobPage } from '../../core/jobs.service';
+import { JobsService, JobFile, JobPage, JobSummary } from '../../core/jobs.service';
 import * as pdfjsLib from 'pdfjs-dist';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 
@@ -16,7 +16,8 @@ import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
       <div style="display:flex; justify-content: space-between; align-items:center; margin-bottom: 12px;">
         <div style="display:flex; align-items:center; gap: 12px;">
           <button class="btn secondary" (click)="backToJobs()">Back</button>
-          <h2 style="margin:0;">File Viewer</h2>
+          <h2 style="margin:0;" *ngIf="!currentFile">File Viewer</h2>
+          <h2 style="margin:0;" *ngIf="currentFile">{{ currentFile.relative_path }}</h2>
         </div>
         <div>
           <button class="btn secondary" (click)="prevDiff()">Prev Diff</button>
@@ -80,7 +81,7 @@ import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
               (mousemove)="onMagnifierMove($event, 'A')"
               (mouseleave)="hideMagnifier('A')"
             >
-              <div class="page-size">{{ pageSizeLabel }}</div>
+              <div class="page-size">{{ job?.set_a_label || 'Set A' }} - {{ pageSizeLabel }}</div>
               <canvas #canvasA></canvas>
               <div class="overlay overlay-left" [style.width.px]="overlayWidth" [style.height.px]="overlayHeight" [innerHTML]="overlaySvgLeft"></div>
             </div>
@@ -92,7 +93,7 @@ import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
               (mousemove)="onMagnifierMove($event, 'B')"
               (mouseleave)="hideMagnifier('B')"
             >
-              <div class="page-size">{{ pageSizeLabel }}</div>
+              <div class="page-size">{{ job?.set_b_label || 'Set B' }} - {{ pageSizeLabel }}</div>
               <canvas #canvasB></canvas>
               <div class="overlay overlay-right" [style.width.px]="overlayWidth" [style.height.px]="overlayHeight" [innerHTML]="overlaySvgRight"></div>
             </div>
@@ -136,6 +137,7 @@ export class ViewerComponent implements OnInit, OnDestroy {
 
   jobId = '';
   fileId = '';
+  job: JobSummary | null = null;
   files: JobFile[] = [];
   private filesWs?: { unsubscribe: () => void };
   pages: JobPage[] = [];
@@ -165,7 +167,8 @@ export class ViewerComponent implements OnInit, OnDestroy {
     private jobs: JobsService,
     private router: Router,
     private sanitizer: DomSanitizer,
-    private renderer: Renderer2
+    private renderer: Renderer2,
+    private cdr: ChangeDetectorRef
   ) {}
 
   ngOnInit(): void {
@@ -177,11 +180,29 @@ export class ViewerComponent implements OnInit, OnDestroy {
       this.jobId = nextJobId;
       this.fileId = nextFileId;
       if (jobChanged) {
+        this.loadJob();
         this.loadJobFiles();
         this.subscribeJobFiles();
       }
       if (fileChanged) {
         this.loadFilePages();
+      }
+    });
+  }
+
+  get currentFile(): JobFile | null {
+    return this.files.find(f => f.id === this.fileId) || null;
+  }
+
+  loadJob() {
+    if (!this.jobId) return;
+    this.jobs.getJob(this.jobId).subscribe({
+      next: job => {
+        this.job = job;
+        this.cdr.detectChanges();
+      },
+      error: () => {
+        this.job = null;
       }
     });
   }

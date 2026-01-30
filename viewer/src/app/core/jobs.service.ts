@@ -67,6 +67,10 @@ export class JobsService {
     return this.http.get<JobSummary[]>(`${this.baseUrl}/jobs`);
   }
 
+  getJob(jobId: string) {
+    return this.http.get<JobSummary>(`${this.baseUrl}/jobs/${jobId}`);
+  }
+
   watchJobs(): Observable<JobSummary[]> {
     return new Observable<JobSummary[]>(subscriber => {
       let ws: WebSocket | null = null;
