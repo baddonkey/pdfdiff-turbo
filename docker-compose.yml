@@ -1,0 +1,97 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: pdfdiff
+      POSTGRES_USER: pdfdiff
+      POSTGRES_PASSWORD: pdfdiff
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+  api:
+    build: ./api
+    environment:
+      PROJECT_NAME: pdfdiff-turbo
+      DATABASE_URL: postgresql+asyncpg://pdfdiff:pdfdiff@postgres:5432/pdfdiff
+      CELERY_BROKER_URL: amqp://guest:guest@rabbitmq:5672//
+      CELERY_RESULT_BACKEND: rpc://
+      DATA_DIR: /data
+      JWT_SECRET: change-me
+    volumes:
+      - data:/data
+      - ./samples:/data/samples:ro
+    depends_on:
+      - postgres
+      - rabbitmq
+    ports:
+      - "8000:8000"
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+  worker:
+    build: ./api
+    environment:
+      PROJECT_NAME: pdfdiff-turbo
+      DATABASE_URL: postgresql+asyncpg://pdfdiff:pdfdiff@postgres:5432/pdfdiff
+      CELERY_BROKER_URL: amqp://guest:guest@rabbitmq:5672//
+      CELERY_RESULT_BACKEND: rpc://
+      DATA_DIR: /data
+      JWT_SECRET: change-me
+    volumes:
+      - data:/data
+      - ./samples:/data/samples:ro
+    depends_on:
+      - postgres
+      - rabbitmq
+    command: celery -A app.core.celery_app.celery_app worker --loglevel=INFO --pool=solo --concurrency=1
+
+  flower:
+    build: ./api
+    command: celery -A app.core.celery_app.celery_app flower --broker=amqp://guest:guest@rabbitmq:5672//
+    depends_on:
+      - rabbitmq
+    ports:
+      - "5555:5555"
+
+  viewer:
+    build: ./viewer
+    ports:
+      - "8080:80"
+
+  viewer-dev:
+    image: node:20-alpine
+    working_dir: /app
+    command: sh -c "npm install && npm run start"
+    volumes:
+      - ./viewer:/app
+      - /app/node_modules
+    ports:
+      - "4200:4200"
+
+  admin:
+    build: ./admin
+    ports:
+      - "8081:80"
+
+  admin-dev:
+    image: node:20-alpine
+    working_dir: /app
+    command: sh -c "npm install && npm run start -- --port 4201"
+    volumes:
+      - ./admin:/app
+      - /app/node_modules
+    ports:
+      - "4201:4201"
+
+volumes:
+  pgdata:
+  data:

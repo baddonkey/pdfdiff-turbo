@@ -1,0 +1,62 @@
+# PDFDiff Turbo
+
+Production-grade PDF comparison platform with FastAPI + Celery + Postgres + RabbitMQ, plus Angular viewer and admin UIs.
+
+## Architecture
+- API: FastAPI (async SQLAlchemy)
+- Worker: Celery tasks with PyMuPDF rendering + OpenCV diff
+- Storage: Shared Docker volume mounted at `/data`
+- UIs: Angular (viewer + admin) served by Nginx
+
+## Quick Start (Docker)
+1. Start stack:
+   - `docker compose up --build`
+2. Run migrations:
+   - `docker compose exec api alembic upgrade head`
+3. Seed users:
+   - `docker compose exec api python -m app.seed.seed_users`
+
+Defaults (override with env vars below):
+- Admin: `admin@example.com` / `admin123`
+- User: `user@example.com` / `user123`
+
+## Environment Variables
+API/Worker:
+- `DATABASE_URL` (default set in docker-compose)
+- `CELERY_BROKER_URL`
+- `CELERY_RESULT_BACKEND`
+- `JWT_SECRET`
+- `RENDER_DPI`
+- `DIFF_THRESHOLD`
+- `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD`
+- `SEED_USER_EMAIL`, `SEED_USER_PASSWORD`
+
+## Endpoints (Core)
+- Auth: `/auth/register`, `/auth/login`, `/auth/refresh`, `/auth/logout`, `/auth/me`
+- Jobs: `/jobs`, `/jobs/{job_id}/upload`, `/jobs/{job_id}/start`
+- Job status: `/jobs/{job_id}`
+- Files/pages: `/jobs/{job_id}/files`, `/jobs/{job_id}/files/{file_id}/pages`
+- Artifacts: `/jobs/{job_id}/files/{file_id}/pages/{page_index}/overlay`
+- PDF stream: `/jobs/{job_id}/files/{file_id}/content?set=A|B`
+- Admin: `/admin/jobs`, `/admin/jobs/{job_id}/cancel`, `/admin/users`, `/admin/users/{user_id}`
+
+## UIs
+- Viewer: http://localhost:8080
+- Admin: http://localhost:8081
+- API: http://localhost:8000
+- Flower: http://localhost:5555
+
+## Scaling Notes
+- Increase worker concurrency: update `celery worker --concurrency=N`.
+- Add more worker replicas in docker compose or orchestration.
+- Use a dedicated RabbitMQ and Postgres for production.
+- Consider GPU-enabled workers for faster rendering if available.
+- Move `/data` to a networked volume with high throughput for large PDFs.
+
+## Data Layout
+- Uploaded files: `/data/jobs/{job_id}/setA|setB/...`
+- Overlays: `/data/jobs/{job_id}/artifacts/{file_id}/page_{page_index}.svg`
+
+## Notes
+- Incompatible page sizes are marked `incompatible_size` and have `diff_score=null`.
+- Missing pages are tracked per file and per page.
