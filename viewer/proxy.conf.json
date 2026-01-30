@@ -3,6 +3,7 @@
     "target": "http://api:8000",
     "secure": false,
     "changeOrigin": true,
+    "ws": true,
     "pathRewrite": {
       "^/api": ""
     },

@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
+import { Observable } from 'rxjs';
 
 export interface JobFile {
   id: string;
@@ -57,6 +58,41 @@ export class JobsService {
 
   listJobs() {
     return this.http.get<JobSummary[]>(`${this.baseUrl}/jobs`);
+  }
+
+  watchJobs(): Observable<JobSummary[]> {
+    return new Observable<JobSummary[]>(subscriber => {
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        subscriber.next([]);
+        subscriber.complete();
+        return;
+      }
+      const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+      const wsUrl = `${protocol}://${window.location.host}/api/jobs/ws?token=${encodeURIComponent(token)}`;
+      const ws = new WebSocket(wsUrl);
+
+      ws.onmessage = event => {
+        try {
+          const data = JSON.parse(event.data) as JobSummary[];
+          subscriber.next(data);
+        } catch {
+          // ignore malformed payloads
+        }
+      };
+
+      ws.onerror = () => {
+        // keep the stream open for reconnects handled by the caller
+      };
+
+      ws.onclose = () => {
+        subscriber.complete();
+      };
+
+      return () => {
+        ws.close();
+      };
+    });
   }
 
   listSamples() {
