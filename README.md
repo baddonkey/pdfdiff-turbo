@@ -5,6 +5,15 @@ This tool compares two PDF sets by rendering pages and performing pixel-level im
 ![PDFDiff Turbo overview](./Project/Documentation/pdfdiff01.png)
 ![PDFDiff Turbo overview](./Project/Documentation/pdfdiff02.png)
 
+## Features
+- **Pixel-level visual diff**: OpenCV-based comparison highlights even subtle changes
+- **Interactive magnifier**: Toggle zoom lens to inspect differences in detail (2.5x magnification)
+- **Responsive viewer**: PDFs scale dynamically to fit browser window
+- **Real-time updates**: WebSocket connections show live job progress
+- **Navigation controls**: Jump between differences with Prev/Next buttons
+- **Side-by-side comparison**: View Set A and Set B PDFs with synchronized scrolling
+- **Job management**: Track multiple comparison jobs with status updates
+
 ## Architecture
 - API: FastAPI (async SQLAlchemy)
 - Worker: Celery tasks with PyMuPDF rendering + OpenCV diff
