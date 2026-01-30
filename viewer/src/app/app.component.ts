@@ -12,7 +12,7 @@ import { TopbarActionsService } from './core/topbar-actions.service';
     <div class="app-shell">
       <header class="topbar">
         <div style="display:flex; align-items:center; gap: 12px;">
-          <img src="assets/logo.png" alt="Logo" style="height: 84px; width: 84px; object-fit: contain;" />
+          <img src="assets/logo.png" alt="Logo" style="height: 120px; width: 120px; object-fit: contain;" />
           <strong>
             PDFDiff Viewer<ng-container *ngIf="topbar.jobTitle$ | async as jobTitle"> Compare - {{ jobTitle }}</ng-container>
           </strong>
