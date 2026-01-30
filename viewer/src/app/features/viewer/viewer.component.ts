@@ -69,7 +69,7 @@ import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
           </table>
         </div>
 
-        <div style="display: flex; flex-direction: column; flex: 1; min-height: 0; position: relative;">
+        <div style="display: flex; flex-direction: column; flex: 1; min-height: 0; position: relative; overflow: hidden;">
           <div style="position: absolute; top: -50px; left: 0; z-index: 100;">
             <button class="btn secondary" [class.magnifier-active]="magnifierEnabled" (click)="toggleMagnifier()" style="display: flex; align-items: center; gap: 6px;">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
