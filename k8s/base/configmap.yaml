@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pdfdiff-config
+  namespace: pdfdiff
+data:
+  PROJECT_NAME: pdfdiff-turbo
+  DATABASE_URL: postgresql+asyncpg://pdfdiff:pdfdiff@postgres:5432/pdfdiff
+  CELERY_BROKER_URL: amqp://guest:guest@rabbitmq:5672//
+  CELERY_RESULT_BACKEND: rpc://
+  DATA_DIR: /data
+  RENDER_DPI: "150"
