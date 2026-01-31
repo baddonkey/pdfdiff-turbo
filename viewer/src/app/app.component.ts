@@ -15,7 +15,7 @@ import { environment } from '../environments/environment';
         <div style="display:flex; align-items:center; gap: 12px;">
           <img src="assets/logo.png" alt="Logo" style="height: 120px; width: 120px; object-fit: contain;" />
           <strong>
-            PDFDiff Viewer<ng-container *ngIf="topbar.jobTitle$ | async as jobTitle"> Compare - {{ jobTitle }}</ng-container>
+            PDFDiff Turbo<ng-container *ngIf="topbar.jobTitle$ | async as jobTitle"> Compare - {{ jobTitle }}</ng-container>
           </strong>
           <ng-container *ngIf="topbar.actions$ | async as actions">
             <ng-container *ngTemplateOutlet="actions"></ng-container>
@@ -38,7 +38,7 @@ import { environment } from '../environments/environment';
                 <button class="menu-item" (click)="toggleAbout()">About</button>
               </div>
               <div *ngIf="aboutOpen" class="menu-about">
-                <div class="menu-title">PDFDiff Viewer</div>
+                <div class="menu-title">PDFDiff Turbo</div>
                 <div class="menu-meta">Version {{ version }}</div>
               </div>
             </div>
