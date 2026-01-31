@@ -17,12 +17,12 @@ RUN apt-get update \
        shared-mime-info \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt /app/requirements.txt
+COPY api/requirements.txt /app/requirements.txt
 RUN pip install -r /app/requirements.txt
 
-COPY ../VERSION /app/VERSION
-COPY app /app/app
-COPY alembic /app/alembic
-COPY alembic.ini /app/alembic.ini
+COPY VERSION /app/VERSION
+COPY api/app /app/app
+COPY api/alembic /app/alembic
+COPY api/alembic.ini /app/alembic.ini
 
 EXPOSE 8000
