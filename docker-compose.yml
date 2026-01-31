@@ -92,10 +92,10 @@ services:
     ports:
       - "5555:5555"
     restart: unless-stopped
-image: pdfdiff-turbo-viewer:1.0.0
-    
+
   viewer:
     build: ./viewer
+    image: pdfdiff-turbo-viewer:1.0.0
     profiles:
       - prod
     ports:
@@ -115,11 +115,11 @@ image: pdfdiff-turbo-viewer:1.0.0
       - /app/node_modules
     ports:
       - "4200:4200"
-    image: pdfdiff-turbo-admin:1.0.0
     restart: unless-stopped
 
   admin:
     build: ./admin
+    image: pdfdiff-turbo-admin:1.0.0
     ports:
       - "8081:80"
     restart: unless-stopped
