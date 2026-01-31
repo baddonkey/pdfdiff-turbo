@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.11-slim-bookworm
 
 WORKDIR /app
 
@@ -15,10 +15,14 @@ RUN apt-get update \
        libgdk-pixbuf-2.0-0 \
        libffi-dev \
        shared-mime-info \
+    && apt-get upgrade -y \
     && rm -rf /var/lib/apt/lists/*
 
 COPY api/requirements.txt /app/requirements.txt
-RUN pip install -r /app/requirements.txt
+RUN pip install --upgrade pip \
+    && pip install --upgrade wheel==0.46.2 \
+    && pip install -r /app/requirements.txt \
+    && pip install --upgrade wheel==0.46.2
 
 COPY VERSION /app/VERSION
 COPY api/app /app/app
