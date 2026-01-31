@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { RouterLink, RouterOutlet } from '@angular/router';
 import { AuthService } from './core/auth.service';
 import { TopbarActionsService } from './core/topbar-actions.service';
+import { environment } from '../environments/environment';
 
 @Component({
   selector: 'app-root',
@@ -21,11 +22,27 @@ import { TopbarActionsService } from './core/topbar-actions.service';
           </ng-container>
         </div>
         <div style="display:flex; align-items:center; gap: 12px;">
-          <a *ngIf="!(auth.isAuthenticated())" routerLink="/auth">Sign in</a>
-          <span *ngIf="auth.isAuthenticated()" style="font-size: 12px; color: #e2e8f0;">
-            Signed in <strong style="font-weight: 600; color: #ffffff;">{{ auth.getUserEmail() }}</strong>
-          </span>
-          <button *ngIf="auth.isAuthenticated()" class="btn secondary" (click)="auth.logout()">Logout</button>
+          <div class="menu">
+            <button class="hamburger" type="button" (click)="toggleMenu()" aria-label="Menu">
+              <span></span>
+              <span></span>
+              <span></span>
+            </button>
+            <div class="menu-panel" *ngIf="menuOpen">
+              <div class="menu-section">
+                <a *ngIf="!(auth.isAuthenticated())" routerLink="/auth" class="menu-item" (click)="closeMenu()">Sign in</a>
+                <div *ngIf="auth.isAuthenticated()" class="menu-user">
+                  Signed in <strong>{{ auth.getUserEmail() }}</strong>
+                </div>
+                <button *ngIf="auth.isAuthenticated()" class="menu-item" (click)="handleLogout()">Logout</button>
+                <button class="menu-item" (click)="toggleAbout()">About</button>
+              </div>
+              <div *ngIf="aboutOpen" class="menu-about">
+                <div class="menu-title">PDFDiff Viewer</div>
+                <div class="menu-meta">Version {{ version }}</div>
+              </div>
+            </div>
+          </div>
         </div>
       </header>
       <main class="container">
@@ -35,11 +52,36 @@ import { TopbarActionsService } from './core/topbar-actions.service';
   `
 })
 export class AppComponent implements OnInit {
+  version = environment.version;
+  menuOpen = false;
+  aboutOpen = false;
+
   constructor(public auth: AuthService, public topbar: TopbarActionsService) {}
 
   ngOnInit() {
     if (this.auth.isAuthenticated()) {
       this.auth.fetchMe().subscribe();
     }
+  }
+
+  toggleMenu() {
+    this.menuOpen = !this.menuOpen;
+    if (!this.menuOpen) {
+      this.aboutOpen = false;
+    }
+  }
+
+  closeMenu() {
+    this.menuOpen = false;
+    this.aboutOpen = false;
+  }
+
+  toggleAbout() {
+    this.aboutOpen = !this.aboutOpen;
+  }
+
+  handleLogout() {
+    this.auth.logout();
+    this.closeMenu();
   }
 }
