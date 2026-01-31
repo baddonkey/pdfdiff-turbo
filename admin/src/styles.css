@@ -34,6 +34,86 @@ a {
   color: #fff;
 }
 
+.menu {
+  position: relative;
+}
+
+.hamburger {
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  width: 36px;
+  height: 32px;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  cursor: pointer;
+  padding: 6px 8px;
+}
+
+.hamburger span {
+  display: block;
+  height: 2px;
+  width: 100%;
+  background: #ffffff;
+  border-radius: 2px;
+}
+
+.menu-panel {
+  position: absolute;
+  right: 0;
+  top: 44px;
+  min-width: 200px;
+  background: #0f172a;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 12px;
+  padding: 8px;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.35);
+  z-index: 20;
+}
+
+.menu-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.menu-item {
+  display: block;
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: #e2e8f0;
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.menu-item:hover {
+  background: rgba(148, 163, 184, 0.15);
+}
+
+.menu-about {
+  margin-top: 8px;
+  padding: 10px;
+  border-top: 1px solid rgba(148, 163, 184, 0.2);
+  color: #cbd5f5;
+  font-size: 12px;
+}
+
+.menu-title {
+  font-weight: 700;
+  margin-bottom: 4px;
+  color: #ffffff;
+}
+
+.menu-meta {
+  color: #94a3b8;
+}
+
 .container {
   padding: 24px;
 }
