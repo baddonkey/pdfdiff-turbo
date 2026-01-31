@@ -31,7 +31,10 @@ services:
     restart: unless-stopped
 
   api:
-    build: ./api
+    build: 
+      context: .
+      dockerfile: ./api/Dockerfile
+    image: pdfdiff-turbo-api:1.0.0
     environment:
       PROJECT_NAME: pdfdiff-turbo
       DATABASE_URL: postgresql+asyncpg://pdfdiff:pdfdiff@postgres:5432/pdfdiff
@@ -54,7 +57,10 @@ services:
     restart: unless-stopped
 
   worker:
-    build: ./api
+    build: 
+      context: .
+      dockerfile: ./api/Dockerfile
+    image: pdfdiff-turbo-worker:1.0.0
     environment:
       PROJECT_NAME: pdfdiff-turbo
       DATABASE_URL: postgresql+asyncpg://pdfdiff:pdfdiff@postgres:5432/pdfdiff
@@ -75,7 +81,10 @@ services:
     restart: unless-stopped
 
   flower:
-    build: ./api
+    build: 
+      context: .
+      dockerfile: ./api/Dockerfile
+    image: pdfdiff-turbo-flower:1.0.0
     command: celery -A app.core.celery_app.celery_app flower --broker=amqp://guest:guest@rabbitmq:5672//
     depends_on:
       rabbitmq:
@@ -83,7 +92,8 @@ services:
     ports:
       - "5555:5555"
     restart: unless-stopped
-
+image: pdfdiff-turbo-viewer:1.0.0
+    
   viewer:
     build: ./viewer
     profiles:
@@ -105,6 +115,7 @@ services:
       - /app/node_modules
     ports:
       - "4200:4200"
+    image: pdfdiff-turbo-admin:1.0.0
     restart: unless-stopped
 
   admin:
