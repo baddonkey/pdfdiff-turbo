@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, ElementRef, HostListener, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink, RouterOutlet } from '@angular/router';
 import { AuthService } from './core/auth.service';
@@ -14,7 +14,7 @@ import { environment } from '../environments/environment';
         <div>
           <strong>PDFDiff Admin</strong>
         </div>
-        <div class="menu">
+        <div class="menu" #menuRoot>
           <button class="hamburger" type="button" (click)="toggleMenu()" aria-label="Menu">
             <span></span>
             <span></span>
@@ -44,6 +44,8 @@ export class AppComponent {
   menuOpen = false;
   aboutOpen = false;
 
+  @ViewChild('menuRoot') menuRoot?: ElementRef<HTMLElement>;
+
   constructor(public auth: AuthService) {}
 
   toggleMenu() {
@@ -64,6 +66,18 @@ export class AppComponent {
 
   handleLogout() {
     this.auth.logout();
+    this.closeMenu();
+  }
+
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: MouseEvent) {
+    if (!this.menuOpen || !this.menuRoot) {
+      return;
+    }
+    const target = event.target as Node | null;
+    if (target && this.menuRoot.nativeElement.contains(target)) {
+      return;
+    }
     this.closeMenu();
   }
 }
