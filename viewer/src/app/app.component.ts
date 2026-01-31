@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, ElementRef, HostListener, OnInit, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink, RouterOutlet } from '@angular/router';
 import { AuthService } from './core/auth.service';
@@ -22,7 +22,7 @@ import { environment } from '../environments/environment';
           </ng-container>
         </div>
         <div style="display:flex; align-items:center; gap: 12px;">
-          <div class="menu">
+          <div class="menu" #menuRoot>
             <button class="hamburger" type="button" (click)="toggleMenu()" aria-label="Menu">
               <span></span>
               <span></span>
@@ -56,6 +56,8 @@ export class AppComponent implements OnInit {
   menuOpen = false;
   aboutOpen = false;
 
+  @ViewChild('menuRoot') menuRoot?: ElementRef<HTMLElement>;
+
   constructor(public auth: AuthService, public topbar: TopbarActionsService) {}
 
   ngOnInit() {
@@ -82,6 +84,18 @@ export class AppComponent implements OnInit {
 
   handleLogout() {
     this.auth.logout();
+    this.closeMenu();
+  }
+
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: MouseEvent) {
+    if (!this.menuOpen || !this.menuRoot) {
+      return;
+    }
+    const target = event.target as Node | null;
+    if (target && this.menuRoot.nativeElement.contains(target)) {
+      return;
+    }
     this.closeMenu();
   }
 }
