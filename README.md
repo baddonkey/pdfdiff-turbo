@@ -1,6 +1,6 @@
 # PDFDiff Turbo
 
-This tool compares two PDF sets by rendering pages and performing pixel-level image diffs, highlighting even subtle visual changes across versions. It was built in relaxed “vibe coding” sessions using VS Code together with GitHub Copilot to streamline development.
+This tool compares two PDF sets by rendering pages and performing pixel-level image diffs. It was built in relaxed “vibe coding” sessions using VS Code together with GitHub Copilot to streamline development.
 
 ![PDFDiff Turbo overview](./Project/Documentation/pdfdiff01.png)
 ![PDFDiff Turbo overview](./Project/Documentation/pdfdiff02.png)
