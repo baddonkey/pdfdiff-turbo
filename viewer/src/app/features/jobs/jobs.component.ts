@@ -157,6 +157,12 @@ import { TopbarActionsService } from '../../core/topbar-actions.service';
           <div style="position: absolute; top: 12px; right: 12px;">
             <button class="btn secondary" (click)="$event.stopPropagation(); openJobDetails(job.id)">Compare</button>
             <button
+              class="btn secondary"
+              (click)="$event.stopPropagation(); downloadReport(job.id)"
+              [disabled]="generatingReport[job.id]"
+              style="margin-left: 6px;"
+            >{{ generatingReport[job.id] ? 'Generating...' : 'Report' }}</button>
+            <button
               class="btn"
               *ngIf="hasPending(job.progress)"
               (click)="$event.stopPropagation(); continueJob(job)"

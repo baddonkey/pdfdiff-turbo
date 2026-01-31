@@ -432,18 +432,87 @@ class JobService:
             c.drawString(1*inch, height - 3.2*inch, f"Status: {job.status.value}")
             
             c.showPage()
+
+            # Preload pages for TOC and reporting
+            file_pages: list[tuple[JobFile, list]] = []
+            for file_item in files:
+                pages = await self._page_repo.list_for_file(str(file_item.id))
+                pages = sorted(pages, key=lambda p: p.page_index)
+                if pages:
+                    file_pages.append((file_item, pages))
+
+            # Table of contents (starts on first page after initial info)
+            toc_entries = []
+            for file_item, pages in file_pages:
+                diffs_count = sum(1 for p in pages if p.diff_score and p.diff_score > 0)
+                pages_with_diffs = [p for p in pages if p.diff_score and p.diff_score > 0 and p.overlay_svg_path]
+                toc_entries.append({
+                    "file_item": file_item,
+                    "pages": pages,
+                    "diffs_count": diffs_count,
+                    "pages_with_diffs": pages_with_diffs,
+                    "bookmark": f"file_{file_item.id}",
+                    "section_pages": 1 + len(pages_with_diffs)
+                })
+
+            toc_start_y = height - 1.6*inch
+            toc_bottom_y = 1*inch
+            toc_line_height = 0.28 * inch
+            toc_lines_per_page = max(1, int((toc_start_y - toc_bottom_y) / toc_line_height))
+            toc_pages = (len(toc_entries) + toc_lines_per_page - 1) // toc_lines_per_page if toc_entries else 1
+
+            # Compute page numbers for each entry
+            current_page_number = 1 + toc_pages + 1  # title page + TOC pages + first content page
+            for entry in toc_entries:
+                entry["page_number"] = current_page_number
+                current_page_number += entry["section_pages"]
+
+            # Render TOC pages
+            for toc_page_index in range(toc_pages):
+                c.setFont("Helvetica-Bold", 18)
+                c.drawString(0.75*inch, height - 1*inch, "Table of Contents")
+                c.setFont("Helvetica", 11)
+                y_pos = toc_start_y
+
+                start_idx = toc_page_index * toc_lines_per_page
+                end_idx = start_idx + toc_lines_per_page
+                page_entries = toc_entries[start_idx:end_idx]
+
+                for entry in page_entries:
+                    file_item = entry["file_item"]
+                    label = file_item.relative_path
+                    page_number = entry["page_number"]
+                    status = ""
+                    if file_item.missing_in_set_a:
+                        status = " (Missing in Set A)"
+                    elif file_item.missing_in_set_b:
+                        status = " (Missing in Set B)"
+
+                    text = f"{label}{status}"
+                    c.drawString(0.75*inch, y_pos, text)
+                    c.drawRightString(width - 0.75*inch, y_pos, str(page_number))
+
+                    # Link to file section
+                    c.linkRect(
+                        "",
+                        entry["bookmark"],
+                        (0.75*inch, y_pos - 2, width - 0.75*inch, y_pos + 10),
+                        relative=1,
+                        thickness=0
+                    )
+
+                    y_pos -= toc_line_height
+
+                c.showPage()
             
             # Process each file
-            for file_item in files:
-                
-                # Get pages for this file
-                pages = await self._page_repo.list_for_file(str(file_item.id))
-                
-                # Sort pages by page_index
-                pages = sorted(pages, key=lambda p: p.page_index)
+            for entry in toc_entries:
+                file_item = entry["file_item"]
+                pages = entry["pages"]
                 
                 if pages:
                     # File overview page
+                    c.bookmarkPage(entry["bookmark"])
                     c.setFont("Helvetica-Bold", 16)
                     c.drawString(0.75*inch, height - 1*inch, f"File: {file_item.relative_path}")
                     c.setFont("Helvetica", 11)
