@@ -110,7 +110,7 @@ import { TopbarActionsService } from '../../core/topbar-actions.service';
         </div>
       </ng-container>
 
-      <div *ngIf="activeTab === 'jobs'" class="card" style="grid-column: 1 / -1; max-width: 860px; margin: 0 auto;">
+      <div *ngIf="activeTab === 'jobs'" class="card" style="grid-column: 1 / -1; max-width: 760px; margin: 0 auto;">
         <div style="display:flex; justify-content: space-between; align-items:center;">
           <h2>Your Jobs</h2>
           <div style="display:flex; gap: 8px;">
@@ -122,11 +122,11 @@ import { TopbarActionsService } from '../../core/topbar-actions.service';
         <div
           *ngFor="let job of jobList"
           class="card"
-          style="margin-top: 10px; position: relative; cursor: pointer;"
+          style="margin-top: 10px; cursor: pointer;"
           [style.border]="job.id === jobId ? '2px solid var(--theme-primary)' : '1px solid transparent'"
           (click)="selectJob(job.id)"
         >
-          <div style="display:flex; justify-content: space-between; align-items:flex-start;">
+          <div style="display:flex; justify-content: space-between; align-items:center; gap: 12px;">
             <div>
               <strong>{{ job.display_id || job.id }}</strong>
               <div style="font-size: 12px; color:#64748b; margin-top: 4px;">
@@ -135,39 +135,37 @@ import { TopbarActionsService } from '../../core/topbar-actions.service';
               <div style="font-size: 12px; color:#94a3b8; margin-top: 4px;">
                 Created: {{ formatDate(job.created_at) }}
               </div>
-              <div *ngIf="job.progress as progress" style="margin-top: 10px; width: 100%;">
-                <div style="display:flex; justify-content: space-between; align-items:center; font-size: 12px; color:#475569;">
-                  <strong>Progress</strong>
-                  <span>{{ progress.percent }}%</span>
-                </div>
-                <div style="height: 8px; width: 100%; background:#e2e8f0; border-radius:999px; overflow:hidden; margin: 6px 0 8px;">
-                  <div [style.width.%]="progress.percent" style="height: 100%; background: var(--theme-primary);"></div>
-                </div>
-                <div style="display:flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color:#475569;">
-                  <span>Done: {{ progress.completed }}</span>
-                  <span>Running: {{ progress.running }}</span>
-                  <span>Pending: {{ progress.pending }}</span>
-                  <span>Missing: {{ progress.missing }}</span>
-                  <span>Incompatible: {{ progress.incompatible }}</span>
-                  <span>Failed: {{ progress.failed }}</span>
-                </div>
-              </div>
+            </div>
+            <div style="display:flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end;">
+              <button class="btn secondary" (click)="$event.stopPropagation(); openJobDetails(job.id)">Compare</button>
+              <button
+                class="btn secondary"
+                (click)="$event.stopPropagation(); downloadReport(job.id)"
+                [disabled]="generatingReport[job.id]"
+              >{{ generatingReport[job.id] ? 'Generating...' : 'Report' }}</button>
+              <button
+                class="btn"
+                *ngIf="hasPending(job.progress)"
+                (click)="$event.stopPropagation(); continueJob(job)"
+              >Continue</button>
             </div>
           </div>
-          <div style="position: absolute; top: 12px; right: 12px;">
-            <button class="btn secondary" (click)="$event.stopPropagation(); openJobDetails(job.id)">Compare</button>
-            <button
-              class="btn secondary"
-              (click)="$event.stopPropagation(); downloadReport(job.id)"
-              [disabled]="generatingReport[job.id]"
-              style="margin-left: 6px;"
-            >{{ generatingReport[job.id] ? 'Generating...' : 'Report' }}</button>
-            <button
-              class="btn"
-              *ngIf="hasPending(job.progress)"
-              (click)="$event.stopPropagation(); continueJob(job)"
-              style="margin-left: 6px;"
-            >Continue</button>
+          <div *ngIf="job.progress as progress" style="margin-top: 10px; width: 100%;">
+            <div style="display:flex; justify-content: space-between; align-items:center; font-size: 12px; color:#475569;">
+              <strong>Progress</strong>
+              <span>{{ progress.percent }}%</span>
+            </div>
+            <div style="height: 8px; width: 100%; background:#e2e8f0; border-radius:999px; overflow:hidden; margin: 6px 0 8px;">
+              <div [style.width.%]="progress.percent" style="height: 100%; background: var(--theme-primary);"></div>
+            </div>
+            <div style="display:flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color:#475569;">
+              <span>Done: {{ progress.completed }}</span>
+              <span>Running: {{ progress.running }}</span>
+              <span>Pending: {{ progress.pending }}</span>
+              <span>Missing: {{ progress.missing }}</span>
+              <span>Incompatible: {{ progress.incompatible }}</span>
+              <span>Failed: {{ progress.failed }}</span>
+            </div>
           </div>
         </div>
       </div>
