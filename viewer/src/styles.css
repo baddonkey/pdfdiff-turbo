@@ -15,8 +15,10 @@
 body {
   margin: 0;
   background: #f4f6fb;
-  overflow: hidden;
-  height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 100vh;
+  min-height: 100dvh;
 }
 
 a {
@@ -25,10 +27,11 @@ a {
 }
 
 .app-shell {
-  height: 100vh;
+  min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .topbar {
@@ -38,6 +41,9 @@ a {
   padding: 8px 24px;
   background: var(--theme-primary);
   color: var(--theme-primary-contrast);
+  position: sticky;
+  top: 0;
+  z-index: 100;
 }
 
 .menu {
@@ -136,7 +142,7 @@ a {
   flex: 1;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: visible;
   min-height: 0;
 }
 
