@@ -28,6 +28,19 @@ Typical entrypoints:
 - Flower: NodePort on service "flower" (port 5555)
 - RabbitMQ UI: NodePort on service "rabbitmq" (port 15672)
 
+### NodePort access on Minikube + Podman (Fedora)
+If your host cannot reach the Minikube IP (e.g., 192.168.49.2), add a **persistent** host route for the Minikube subnet via the podman bridge interface (typically `podman1`). This keeps NodePorts reachable across reboots.
+
+Recommended approach (NetworkManager):
+1. Identify the active connection name for your host interface:
+   - nmcli -t -f NAME,DEVICE connection show --active
+2. Add a static route for 192.168.49.0/24 via podman1 on that connection (replace <CONNECTION_NAME>):
+   - nmcli connection modify <CONNECTION_NAME> +ipv4.routes "192.168.49.0/24 podman1"
+3. Reconnect the interface (or reboot):
+   - nmcli connection down <CONNECTION_NAME> && nmcli connection up <CONNECTION_NAME>
+
+After this, NodePort URLs like `http://<minikube-ip>:<nodeport>` should work consistently.
+
 ## Production (cloud)
 This overlay adds an Ingress and assumes you have an Ingress controller (nginx) installed.
 
