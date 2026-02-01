@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.features.auth.models import User
 from app.features.auth.refresh_token_model import RefreshToken
 from app.features.auth.repository import RefreshTokenRepository, UserRepository
-from app.features.auth.schemas import LoginCommand, LogoutCommand, RefreshCommand, RegisterCommand, TokenPairMessage, UserMessage
+from app.features.auth.schemas import ChangePasswordCommand, LoginCommand, LogoutCommand, RefreshCommand, RegisterCommand, TokenPairMessage, UserMessage
 from app.features.auth.security import create_access_token, create_refresh_token, hash_password, verify_password
 
 
@@ -63,6 +63,14 @@ class AuthService:
         if token:
             token.revoked = True
             await self._session.commit()
+        return {"status": "ok"}
+
+    async def change_password(self, user: User, command: ChangePasswordCommand) -> dict:
+        if not verify_password(command.current_password, user.hashed_password):
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+
+        user.hashed_password = hash_password(command.new_password)
+        await self._session.commit()
         return {"status": "ok"}
 
     @staticmethod
