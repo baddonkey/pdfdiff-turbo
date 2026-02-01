@@ -5,8 +5,16 @@ metadata:
   namespace: pdfdiff
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
 spec:
   ingressClassName: nginx
+  tls:
+    - secretName: pdfdiff-local-tls
+      hosts:
+        - api.pdfdiff-turbo.local
+        - admin.pdfdiff-turbo.local
+        - viewer.pdfdiff-turbo.local
+        - flower.pdfdiff-turbo.local
   rules:
     - host: api.pdfdiff-turbo.local
       http:

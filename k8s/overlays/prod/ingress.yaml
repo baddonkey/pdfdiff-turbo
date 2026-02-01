@@ -5,8 +5,17 @@ metadata:
   namespace: pdfdiff
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    cert-manager.io/cluster-issuer: letsencrypt-prod
 spec:
   ingressClassName: nginx
+  tls:
+    - secretName: pdfdiff-prod-tls
+      hosts:
+        - api.example.com
+        - admin.example.com
+        - viewer.example.com
+        - flower.example.com
   rules:
     - host: api.example.com
       http:
