@@ -4,13 +4,13 @@ This folder creates a self-contained deployment bundle with Kubernetes manifests
 
 ## What the bundle contains
 - k8s manifests (base + overlays)
-- Docker/Podman image tar files
+- Podman image tar files
 - Load script for Minikube
 
 ## A) Build the deployment bundle (build machine)
 
 Requirements on the build machine:
-- Linux with Docker or Podman
+- Linux with Podman
 - Internet access (for base image pulls)
 
 Steps:
@@ -29,7 +29,7 @@ AIRGAP=1 ./deploy/package/build-and-package.sh
 
 ## B) Install Kubernetes on a Debian VM (target machine)
 
-These steps install Docker, kubectl, and Minikube on Debian 11/12.
+These steps install Podman, kubectl, and Minikube on Debian 11/12.
 
 1) Base packages:
 ```bash
@@ -37,18 +37,11 @@ sudo apt-get update
 sudo apt-get install -y ca-certificates curl gnupg lsb-release conntrack socat ebtables ethtool
 ```
 
-2) Install Docker:
+2) Install Podman:
 ```bash
-sudo install -m 0755 -d /etc/apt/keyrings
-curl -fsSL https://download.docker.com/linux/debian/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-sudo chmod a+r /etc/apt/keyrings/docker.gpg
-
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian $(. /etc/os-release && echo $VERSION_CODENAME) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
 sudo apt-get update
-sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-sudo usermod -aG docker $USER
+sudo apt-get install -y podman
 ```
-Log out and back in (or reboot) so your user can run Docker.
 
 3) Install kubectl:
 ```bash
@@ -74,9 +67,9 @@ tar -xzf pdfdiff-turbo-deploy_<VERSION>.tar.gz
 cd bundle
 ```
 
-2) Start Minikube (Docker driver):
+2) Start Minikube with Podman:
 ```bash
-minikube start --driver=docker
+minikube start --driver=podman
 ```
 
 3) Load images into Minikube:
@@ -120,7 +113,6 @@ Add /etc/hosts entries on your client machine:
 ## Notes
 - Default credentials are in the root README.
 - If you change VERSION, update k8s/overlays/local/kustomization.yaml image tags accordingly.
-- For a different container engine, set CONTAINER_ENGINE=podman when building the bundle.
 
 ---
 
@@ -136,15 +128,15 @@ Create a folder to hold .deb files:
 mkdir -p offline-debs
 ```
 
-Download packages (and dependencies) for Docker + prerequisites:
+Download packages (and dependencies) for Podman + prerequisites:
 ```bash
 sudo apt-get update
 sudo apt-get install -y apt-rdepends
 
 pkgs=(ca-certificates curl gnupg lsb-release conntrack socat ebtables ethtool)
-docker_pkgs=(docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin)
+podman_pkgs=(podman)
 
-apt-rdepends ${pkgs[@]} ${docker_pkgs[@]} | grep -E '^\w' | sort -u > offline-debs/package-list.txt
+apt-rdepends ${pkgs[@]} ${podman_pkgs[@]} | grep -E '^\w' | sort -u > offline-debs/package-list.txt
 cd offline-debs
 xargs -a package-list.txt apt-get download
 ```
@@ -177,14 +169,14 @@ Copy pdfdiff-turbo-airgap_<VERSION>.tar.gz to the target VM (USB, SCP over a con
 
 ## 2) Install on the air‑gapped Debian VM (no internet)
 
-### A. Install Docker and prerequisites from .deb files
+### A. Install Podman and prerequisites from .deb files
 ```bash
 tar -xzf pdfdiff-turbo-airgap_<VERSION>.tar.gz
 cd offline-debs
 sudo dpkg -i ./*.deb || sudo apt-get -f install -y
-sudo usermod -aG docker $USER
 ```
-Log out and back in (or reboot).
+
+Download and install the Podman .deb packages from the build machine.
 
 ### B. Install kubectl and Minikube binaries
 ```bash
@@ -198,7 +190,7 @@ sudo install minikube-linux-amd64 /usr/local/bin/minikube
 ```bash
 tar -xzf deploy/package/out/pdfdiff-turbo-deploy_<VERSION>.tar.gz
 cd bundle
-minikube start --driver=docker
+minikube start --driver=podman
 chmod +x load-into-minikube.sh
 ./load-into-minikube.sh
 kubectl apply -k k8s/overlays/local
