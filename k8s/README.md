@@ -24,19 +24,20 @@ This is the working setup used in this repo on Fedora with rootful Podman.
 - sudo env MINIKUBE_ROOTLESS=false minikube start --driver=podman --network=host --force
 
 ### 2) Build and load images into Minikube
-Build images (rootful Podman) to match the local overlay tags:
-- sudo podman build -t localhost/pdfdiff-turbo-api:1.1.0 -f api/Dockerfile .
-- sudo podman build -t localhost/pdfdiff-turbo-worker:1.1.0 -f api/Dockerfile .
-- sudo podman build -t localhost/pdfdiff-turbo-flower:1.1.0 -f api/Dockerfile .
-- sudo podman build -t localhost/pdfdiff-turbo-admin:1.1.3 -f admin/Dockerfile admin
-- sudo podman build -t localhost/pdfdiff-turbo-viewer:1.1.3 -f viewer/Dockerfile viewer
+Build images (rootful Podman) to match the local overlay tags.
+Use the version from VERSION (replace <VERSION> below with the value from the file):
+- sudo podman build -t localhost/pdfdiff-turbo-api:<VERSION> -f api/Dockerfile .
+- sudo podman build -t localhost/pdfdiff-turbo-worker:<VERSION> -f api/Dockerfile .
+- sudo podman build -t localhost/pdfdiff-turbo-flower:<VERSION> -f api/Dockerfile .
+- sudo podman build -t localhost/pdfdiff-turbo-admin:<VERSION> -f admin/Dockerfile admin
+- sudo podman build -t localhost/pdfdiff-turbo-viewer:<VERSION> -f viewer/Dockerfile viewer
 
 Load images into Minikube (stream from Podman):
-- sudo podman save localhost/pdfdiff-turbo-api:1.1.0 | sudo minikube image load -
-- sudo podman save localhost/pdfdiff-turbo-worker:1.1.0 | sudo minikube image load -
-- sudo podman save localhost/pdfdiff-turbo-flower:1.1.0 | sudo minikube image load -
-- sudo podman save localhost/pdfdiff-turbo-admin:1.1.3 | sudo minikube image load -
-- sudo podman save localhost/pdfdiff-turbo-viewer:1.1.3 | sudo minikube image load -
+- sudo podman save localhost/pdfdiff-turbo-api:<VERSION> | sudo minikube image load -
+- sudo podman save localhost/pdfdiff-turbo-worker:<VERSION> | sudo minikube image load -
+- sudo podman save localhost/pdfdiff-turbo-flower:<VERSION> | sudo minikube image load -
+- sudo podman save localhost/pdfdiff-turbo-admin:<VERSION> | sudo minikube image load -
+- sudo podman save localhost/pdfdiff-turbo-viewer:<VERSION> | sudo minikube image load -
 
 ### 3) Deploy the stack
 - sudo minikube kubectl -- apply -k k8s/overlays/local
