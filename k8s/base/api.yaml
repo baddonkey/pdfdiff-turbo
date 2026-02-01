@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  namespace: pdfdiff
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: api
+  template:
+    metadata:
+      labels:
+        app: api
+    spec:
+      containers:
+        - name: api
+          image: pdfdiff-turbo-api:1.1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: pdfdiff-config
+            - secretRef:
+                name: pdfdiff-secret
+          command:
+            - sh
+            - -c
+            - alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000
+          volumeMounts:
+            - name: pdfdiff-data
+              mountPath: /data
+          readinessProbe:
+            httpGet:
+              path: /docs
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 6
+      volumes:
+        - name: pdfdiff-data
+          persistentVolumeClaim:
+            claimName: pdfdiff-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api
+  namespace: pdfdiff
+spec:
+  selector:
+    app: api
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000

@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flower
+  namespace: pdfdiff
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: flower
+  template:
+    metadata:
+      labels:
+        app: flower
+    spec:
+      containers:
+        - name: flower
+          image: pdfdiff-turbo-flower:1.1.0
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: FLOWER_PORT
+              value: "5555"
+          command:
+            - celery
+            - -A
+            - app.core.celery_app.celery_app
+            - --broker=amqp://guest:guest@rabbitmq:5672//
+            - flower
+          ports:
+            - containerPort: 5555
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: flower
+  namespace: pdfdiff
+spec:
+  selector:
+    app: flower
+  ports:
+    - name: http
+      port: 5555
+      targetPort: 5555

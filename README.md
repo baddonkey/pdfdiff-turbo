@@ -60,6 +60,14 @@ API/Worker:
 - API: http://localhost:8000
 - Flower: http://localhost:5555
 
+## HTTPS (Self-signed, local)
+1. Generate certs:
+   - `python ./scripts/generate-dev-certs.py`
+2. Start the stack as usual.
+3. Open:
+   - Viewer: https://localhost:8443
+   - Admin: https://localhost:8444
+
 ## Scaling Notes
 - Increase worker concurrency: update `celery worker --concurrency=N`.
 - Add more worker replicas in docker compose or orchestration.
