@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: viewer
+  namespace: pdfdiff
+spec:
+  template:
+    spec:
+      containers:
+        - name: viewer
+          volumeMounts:
+            - name: viewer-tls
+              mountPath: /etc/nginx/certs
+              readOnly: true
+      volumes:
+        - name: viewer-tls
+          secret:
+            secretName: pdfdiff-local-tls
+            items:
+              - key: tls.crt
+                path: localhost.crt
+              - key: tls.key
+                path: localhost.key

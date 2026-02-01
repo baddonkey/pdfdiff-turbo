@@ -28,15 +28,15 @@ Build images (rootful Podman) to match the local overlay tags:
 - sudo podman build -t localhost/pdfdiff-turbo-api:1.1.0 -f api/Dockerfile .
 - sudo podman build -t localhost/pdfdiff-turbo-worker:1.1.0 -f api/Dockerfile .
 - sudo podman build -t localhost/pdfdiff-turbo-flower:1.1.0 -f api/Dockerfile .
-- sudo podman build -t localhost/pdfdiff-turbo-admin:1.1.2 -f admin/Dockerfile admin
-- sudo podman build -t localhost/pdfdiff-turbo-viewer:1.1.4 -f viewer/Dockerfile viewer
+- sudo podman build -t localhost/pdfdiff-turbo-admin:1.1.3 -f admin/Dockerfile admin
+- sudo podman build -t localhost/pdfdiff-turbo-viewer:1.1.3 -f viewer/Dockerfile viewer
 
 Load images into Minikube (stream from Podman):
 - sudo podman save localhost/pdfdiff-turbo-api:1.1.0 | sudo minikube image load -
 - sudo podman save localhost/pdfdiff-turbo-worker:1.1.0 | sudo minikube image load -
 - sudo podman save localhost/pdfdiff-turbo-flower:1.1.0 | sudo minikube image load -
-- sudo podman save localhost/pdfdiff-turbo-admin:1.1.2 | sudo minikube image load -
-- sudo podman save localhost/pdfdiff-turbo-viewer:1.1.4 | sudo minikube image load -
+- sudo podman save localhost/pdfdiff-turbo-admin:1.1.3 | sudo minikube image load -
+- sudo podman save localhost/pdfdiff-turbo-viewer:1.1.3 | sudo minikube image load -
 
 ### 3) Deploy the stack
 - sudo minikube kubectl -- apply -k k8s/overlays/local
