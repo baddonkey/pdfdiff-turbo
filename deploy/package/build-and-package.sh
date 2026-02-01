@@ -4,11 +4,12 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 VERSION="$(cat "${ROOT_DIR}/VERSION")"
 OUT_DIR="${ROOT_DIR}/deploy/package/out"
-ENGINE="${CONTAINER_ENGINE:-docker}"
+ENGINE="${CONTAINER_ENGINE:-podman}"
+BUILD_JOBS="${BUILD_JOBS:-1}"
 AIRGAP="${AIRGAP:-0}"
 
 if ! command -v "${ENGINE}" >/dev/null 2>&1; then
-  echo "Container engine '${ENGINE}' not found. Set CONTAINER_ENGINE=docker or podman." >&2
+  echo "Container engine '${ENGINE}' not found. Set CONTAINER_ENGINE=podman." >&2
   exit 1
 fi
 
@@ -18,7 +19,7 @@ build_image() {
   local name="$1"
   local dockerfile="$2"
   local context="$3"
-  "${ENGINE}" build -t "localhost/${name}:${VERSION}" -f "${dockerfile}" "${context}"
+  "${ENGINE}" build --jobs="${BUILD_JOBS}" -t "localhost/${name}:${VERSION}" -f "${dockerfile}" "${context}"
 }
 
 save_image() {
@@ -64,9 +65,9 @@ if [[ "${AIRGAP}" == "1" ]]; then
   sudo apt-get install -y apt-rdepends
 
   pkgs=(ca-certificates curl gnupg lsb-release conntrack socat ebtables ethtool)
-  docker_pkgs=(docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin)
+  podman_pkgs=(podman)
 
-  apt-rdepends ${pkgs[@]} ${docker_pkgs[@]} | grep -E '^\w' | sort -u > "${OFFLINE_DEBS_DIR}/package-list.txt"
+  apt-rdepends ${pkgs[@]} ${podman_pkgs[@]} | grep -E '^\w' | sort -u > "${OFFLINE_DEBS_DIR}/package-list.txt"
   (cd "${OFFLINE_DEBS_DIR}" && xargs -a package-list.txt apt-get download)
 
   # Optional mkcert package list for offline TLS setup

@@ -3,7 +3,7 @@
 This folder contains Kustomize manifests for local and production deployments.
 
 ## Image expectations
-These manifests reference the same image names used in docker-compose:
+These manifests reference the same image names used across the stack:
 - pdfdiff-turbo-api:1.1.0
 - pdfdiff-turbo-worker:1.1.0
 - pdfdiff-turbo-flower:1.1.0
