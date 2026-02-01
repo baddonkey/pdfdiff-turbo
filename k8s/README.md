@@ -12,41 +12,70 @@ These manifests reference the same image names used in docker-compose:
 
 Build and push these images to a registry that your cluster can access, or load them into your local cluster (Kind/Minikube).
 
-## Local (Minikube + Podman rootful)
-This is the working setup used in this repo on Fedora with rootful Podman:
-1. Recreate Minikube using the Podman host network:
-   - sudo env MINIKUBE_ROOTLESS=false minikube start --driver=podman --network=host --force
-2. Apply the local overlay (use minikube’s kubectl when running rootful):
-   - sudo minikube kubectl -- apply -k k8s/overlays/local
-3. Build images (rootful Podman) to match the local overlay tags:
-   - sudo podman build -t localhost/pdfdiff-turbo-api:1.1.0 -f api/Dockerfile .
-   - sudo podman build -t localhost/pdfdiff-turbo-worker:1.1.0 -f api/Dockerfile .
-   - sudo podman build -t localhost/pdfdiff-turbo-flower:1.1.0 -f api/Dockerfile .
-   - sudo podman build -t localhost/pdfdiff-turbo-admin:1.1.2 -f admin/Dockerfile admin
-   - sudo podman build -t localhost/pdfdiff-turbo-viewer:1.1.4 -f viewer/Dockerfile viewer
-4. Load images into Minikube (stream from Podman):
-   - sudo podman save localhost/pdfdiff-turbo-api:1.1.0 | sudo minikube image load -
-   - sudo podman save localhost/pdfdiff-turbo-worker:1.1.0 | sudo minikube image load -
-   - sudo podman save localhost/pdfdiff-turbo-flower:1.1.0 | sudo minikube image load -
-   - sudo podman save localhost/pdfdiff-turbo-admin:1.1.2 | sudo minikube image load -
-   - sudo podman save localhost/pdfdiff-turbo-viewer:1.1.4 | sudo minikube image load -
+## Local (Minikube + Podman rootful, from scratch)
+This is the working setup used in this repo on Fedora with rootful Podman.
 
-### Local Ingress (recommended for browser access)
-This overlay includes a local Ingress definition at k8s/overlays/local/ingress.yaml. To enable it:
-1. Enable the ingress addon:
-   - sudo minikube addons enable ingress
-2. Install mkcert (Fedora):
-   - sudo dnf install -y mkcert
-3. Generate trusted local TLS and apply the secret:
-   - python scripts/generate-k8s-local-tls.py
-   - sudo minikube kubectl -- apply -f k8s/overlays/local/tls-secret.yaml
-4. Apply the local ingress resource:
-   - sudo minikube kubectl -- apply -f k8s/overlays/local/ingress.yaml
-5. Point DNS to your host LAN IP (example 192.168.1.17) by adding entries on any client machine:
-   - 192.168.1.17 api.pdfdiff-turbo.local
-   - 192.168.1.17 admin.pdfdiff-turbo.local
-   - 192.168.1.17 viewer.pdfdiff-turbo.local
-   - 192.168.1.17 flower.pdfdiff-turbo.local
+### Prerequisites
+- Podman installed
+- Minikube installed
+- mkcert installed (for trusted local HTTPS)
+
+### 1) Start Minikube (rootful Podman + host networking)
+- sudo env MINIKUBE_ROOTLESS=false minikube start --driver=podman --network=host --force
+
+### 2) Build and load images into Minikube
+Build images (rootful Podman) to match the local overlay tags:
+- sudo podman build -t localhost/pdfdiff-turbo-api:1.1.0 -f api/Dockerfile .
+- sudo podman build -t localhost/pdfdiff-turbo-worker:1.1.0 -f api/Dockerfile .
+- sudo podman build -t localhost/pdfdiff-turbo-flower:1.1.0 -f api/Dockerfile .
+- sudo podman build -t localhost/pdfdiff-turbo-admin:1.1.2 -f admin/Dockerfile admin
+- sudo podman build -t localhost/pdfdiff-turbo-viewer:1.1.4 -f viewer/Dockerfile viewer
+
+Load images into Minikube (stream from Podman):
+- sudo podman save localhost/pdfdiff-turbo-api:1.1.0 | sudo minikube image load -
+- sudo podman save localhost/pdfdiff-turbo-worker:1.1.0 | sudo minikube image load -
+- sudo podman save localhost/pdfdiff-turbo-flower:1.1.0 | sudo minikube image load -
+- sudo podman save localhost/pdfdiff-turbo-admin:1.1.2 | sudo minikube image load -
+- sudo podman save localhost/pdfdiff-turbo-viewer:1.1.4 | sudo minikube image load -
+
+### 3) Deploy the stack
+- sudo minikube kubectl -- apply -k k8s/overlays/local
+
+### 4) Enable Ingress + trusted HTTPS
+Enable the ingress addon:
+- sudo minikube addons enable ingress
+
+Install mkcert (Fedora):
+- sudo dnf install -y mkcert
+
+Generate trusted local TLS and apply the secret:
+- python scripts/generate-k8s-local-tls.py
+- sudo minikube kubectl -- apply -f k8s/overlays/local/tls-secret.yaml
+
+Apply the local ingress resource:
+- sudo minikube kubectl -- apply -f k8s/overlays/local/ingress.yaml
+
+### 5) Expose Ingress to your LAN (required for other machines)
+Get the ingress NodePorts:
+- sudo minikube kubectl -- get svc -n ingress-nginx
+
+Forward host ports 80/443 to the ingress NodePorts (example NodePorts 32365/31459):
+- sudo firewall-cmd --permanent --add-service=http
+- sudo firewall-cmd --permanent --add-service=https
+- sudo firewall-cmd --permanent --add-masquerade
+- sudo firewall-cmd --permanent --add-forward-port=port=80:proto=tcp:toaddr=<minikube-ip>:toport=<http-nodeport>
+- sudo firewall-cmd --permanent --add-forward-port=port=443:proto=tcp:toaddr=<minikube-ip>:toport=<https-nodeport>
+- sudo firewall-cmd --reload
+
+Get the Minikube IP (for the forward rules above):
+- sudo minikube ip
+
+### 6) DNS/hosts entries on each client machine
+Point DNS to your host LAN IP (example 192.168.1.17) by adding entries on any client machine:
+- 192.168.1.17 api.pdfdiff-turbo.local
+- 192.168.1.17 admin.pdfdiff-turbo.local
+- 192.168.1.17 viewer.pdfdiff-turbo.local
+- 192.168.1.17 flower.pdfdiff-turbo.local
 
 Then browse using the hostnames above, e.g. https://viewer.pdfdiff-turbo.local
 
