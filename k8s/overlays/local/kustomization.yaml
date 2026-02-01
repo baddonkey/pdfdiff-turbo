@@ -19,4 +19,4 @@ images:
     newTag: 1.1.2
   - name: pdfdiff-turbo-viewer
     newName: localhost/pdfdiff-turbo-viewer
-    newTag: 1.1.3
+    newTag: 1.1.4
