@@ -28,6 +28,51 @@ Typical entrypoints:
 - Flower: NodePort on service "flower" (port 5555)
 - RabbitMQ UI: NodePort on service "rabbitmq" (port 15672)
 
+### Current local setup (Minikube + Podman host network)
+This is the working setup used in this repo on Fedora with rootful Podman:
+1. Recreate Minikube using the Podman host network:
+   - sudo env MINIKUBE_ROOTLESS=false minikube start --driver=podman --network=host --force
+2. Apply the local overlay (use minikube’s kubectl when running rootful):
+   - sudo minikube kubectl -- apply -k k8s/overlays/local
+3. Build images (rootful Podman) to match the local overlay tags:
+   - sudo podman build -t localhost/pdfdiff-turbo-api:1.1.0 -f api/Dockerfile .
+   - sudo podman build -t localhost/pdfdiff-turbo-worker:1.1.0 -f api/Dockerfile .
+   - sudo podman build -t localhost/pdfdiff-turbo-flower:1.1.0 -f api/Dockerfile .
+   - sudo podman build -t localhost/pdfdiff-turbo-admin:1.1.2 -f admin/Dockerfile admin
+   - sudo podman build -t localhost/pdfdiff-turbo-viewer:1.1.4 -f viewer/Dockerfile viewer
+4. Load images into Minikube (stream from Podman):
+   - sudo podman save localhost/pdfdiff-turbo-api:1.1.0 | sudo minikube image load -
+   - sudo podman save localhost/pdfdiff-turbo-worker:1.1.0 | sudo minikube image load -
+   - sudo podman save localhost/pdfdiff-turbo-flower:1.1.0 | sudo minikube image load -
+   - sudo podman save localhost/pdfdiff-turbo-admin:1.1.2 | sudo minikube image load -
+   - sudo podman save localhost/pdfdiff-turbo-viewer:1.1.4 | sudo minikube image load -
+
+### Local Ingress (recommended for browser access)
+This overlay includes a local Ingress definition at k8s/overlays/local/ingress.yaml. To enable it:
+1. Enable the ingress addon:
+   - minikube addons enable ingress
+2. Apply the local ingress resource:
+   - kubectl apply -f k8s/overlays/local/ingress.yaml
+3. Point DNS to your host LAN IP (example 192.168.1.17) by adding entries on any client machine:
+   - 192.168.1.17 api.pdfdiff-turbo.local
+   - 192.168.1.17 admin.pdfdiff-turbo.local
+   - 192.168.1.17 viewer.pdfdiff-turbo.local
+   - 192.168.1.17 flower.pdfdiff-turbo.local
+
+Note: each client machine that should access the Ingress must have these /etc/hosts entries (or equivalent DNS).
+
+If your Minikube is running with the Podman driver, you may need to forward host ports 80/443 to the ingress NodePorts:
+1. Find ingress NodePorts:
+   - kubectl get svc -n ingress-nginx
+2. Forward ports on the host (example NodePorts 31472/30673):
+   - sudo firewall-cmd --permanent --add-service=http
+   - sudo firewall-cmd --permanent --add-service=https
+   - sudo firewall-cmd --permanent --add-forward-port=port=80:proto=tcp:toaddr=<minikube-ip>:toport=<http-nodeport>
+   - sudo firewall-cmd --permanent --add-forward-port=port=443:proto=tcp:toaddr=<minikube-ip>:toport=<https-nodeport>
+   - sudo firewall-cmd --reload
+
+Then browse using the hostnames above, e.g. http://viewer.pdfdiff-turbo.local
+
 ### NodePort access on Minikube + Podman (Fedora)
 If your host cannot reach the Minikube IP (e.g., 192.168.49.2), add a **persistent** host route for the Minikube subnet via the podman bridge interface (typically `podman1`). This keeps NodePorts reachable across reboots.
 
