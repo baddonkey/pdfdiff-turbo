@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 
 from app.features.auth.deps import get_auth_service, get_current_user
-from app.features.auth.schemas import LoginCommand, LogoutCommand, RefreshCommand, RegisterCommand, TokenPairMessage, UserMessage
+from app.features.auth.schemas import ChangePasswordCommand, LoginCommand, LogoutCommand, RefreshCommand, RegisterCommand, TokenPairMessage, UserMessage
 from app.features.auth.service import AuthService
 from app.features.auth.models import User
 
@@ -37,3 +37,12 @@ async def me(user: User = Depends(get_current_user)) -> UserMessage:
         is_active=user.is_active,
         created_at=user.created_at,
     )
+
+
+@router.post("/change-password")
+async def change_password(
+    command: ChangePasswordCommand,
+    user: User = Depends(get_current_user),
+    service: AuthService = Depends(get_auth_service),
+) -> dict:
+    return await service.change_password(user, command)

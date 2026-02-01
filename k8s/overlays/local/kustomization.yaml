@@ -1,0 +1,22 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+patches:
+  - path: services-nodeport.yaml
+images:
+  - name: pdfdiff-turbo-api
+    newName: localhost/pdfdiff-turbo-api
+    newTag: 1.1.0
+  - name: pdfdiff-turbo-worker
+    newName: localhost/pdfdiff-turbo-worker
+    newTag: 1.1.0
+  - name: pdfdiff-turbo-flower
+    newName: localhost/pdfdiff-turbo-flower
+    newTag: 1.1.0
+  - name: pdfdiff-turbo-admin
+    newName: localhost/pdfdiff-turbo-admin
+    newTag: 1.1.2
+  - name: pdfdiff-turbo-viewer
+    newName: localhost/pdfdiff-turbo-viewer
+    newTag: 1.1.4

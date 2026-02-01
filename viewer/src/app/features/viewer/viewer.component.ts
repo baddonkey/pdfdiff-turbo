@@ -14,7 +14,7 @@ import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
   imports: [CommonModule],
   template: `
     <div class="card">
-      <div style="display:flex; justify-content: space-between; align-items:center; margin-bottom: 12px;">
+      <div class="viewer-header" style="display:flex; justify-content: space-between; align-items:center; margin-bottom: 12px;">
         <div style="display:flex; align-items:center; gap: 12px;">
           <button class="btn secondary" (click)="backToJobs()">Back</button>
           <h2 style="margin:0;" *ngIf="!currentFile">File Viewer</h2>
@@ -104,7 +104,7 @@ import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
             </div>
           </div>
 
-          <div style="margin-top: 16px; display:flex; gap: 12px; align-items:center;">
+          <div class="viewer-pager" style="margin-top: 16px; display:flex; gap: 12px; align-items:center;">
             <button class="btn secondary" (click)="prevPage()">Prev Page</button>
             <div>Page {{ currentPage + 1 }} / {{ totalPages }}</div>
             <button class="btn" (click)="nextPage()">Next Page</button>
@@ -398,16 +398,30 @@ export class ViewerComponent implements OnInit, OnDestroy {
     }
     const page = await pdf.getPage(pageNumber);
     const viewport1 = page.getViewport({ scale: 1 });
-    
-    // Calculate scale to fit within both viewport height and width
-    // Height: Account for all UI elements: topbar, header, pagination, padding, borders, margins
-    const reservedHeight = 340;
-    const availableHeight = window.innerHeight - reservedHeight;
+
+    const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+    const topbarHeight = (document.querySelector('.topbar') as HTMLElement | null)?.clientHeight ?? 0;
+    const headerHeight = (document.querySelector('.viewer-header') as HTMLElement | null)?.clientHeight ?? 0;
+    const pagerHeight = (document.querySelector('.viewer-pager') as HTMLElement | null)?.clientHeight ?? 0;
+    const containerPadding = 48; // 24px top + 24px bottom
+    const cardPadding = 40; // 20px top + 20px bottom
+    const sectionGaps = 32; // header margin + pager margin + minor gaps
+
+    const reservedHeight = topbarHeight + headerHeight + pagerHeight + containerPadding + cardPadding + sectionGaps;
+    const availableHeight = Math.max(viewportHeight - reservedHeight, 200);
     const scaleToFitHeight = availableHeight / viewport1.height;
-    
-    // Width: Account for sidebar (320px), gap (16px), padding (48px), borders, margin (48px)
-    const reservedWidth = 480;
-    const availableWidthPerCanvas = (window.innerWidth - reservedWidth) / 2;
+
+    const wrap = canvas.closest('.canvas-wrap') as HTMLElement | null;
+    let availableWidthPerCanvas = 0;
+    if (wrap) {
+      const styles = window.getComputedStyle(wrap);
+      const paddingX = (parseFloat(styles.paddingLeft) || 0) + (parseFloat(styles.paddingRight) || 0);
+      availableWidthPerCanvas = Math.max(wrap.clientWidth - paddingX, 120);
+    } else {
+      const reservedWidth = 480;
+      availableWidthPerCanvas = Math.max((window.innerWidth - reservedWidth) / 2, 120);
+    }
+
     const scaleToFitWidth = availableWidthPerCanvas / viewport1.width;
     
     // Use the smaller of the two scales to ensure it fits in both dimensions

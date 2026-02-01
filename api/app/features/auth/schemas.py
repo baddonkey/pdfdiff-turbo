@@ -20,6 +20,11 @@ class LogoutCommand(BaseModel):
     refresh_token: str
 
 
+class ChangePasswordCommand(BaseModel):
+    current_password: str
+    new_password: str
+
+
 class TokenPairMessage(BaseModel):
     access_token: str
     refresh_token: str
