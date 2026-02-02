@@ -1,0 +1,60 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: pdfdiff-ingress
+  namespace: pdfdiff
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
+    traefik.ingress.kubernetes.io/proxy-body-size: "0"
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    traefik.ingress.kubernetes.io/router.middlewares: pdfdiff-redirect-https@kubernetescrd
+spec:
+  ingressClassName: traefik
+  tls:
+    - secretName: pdfdiff-prod-tls
+      hosts:
+        - api.pdfdiff-turbo.nachbrenner.ch
+        - admin.pdfdiff-turbo.nachbrenner.ch
+        - viewer.pdfdiff-turbo.nachbrenner.ch
+        - flower.pdfdiff-turbo.nachbrenner.ch
+  rules:
+    - host: api.pdfdiff-turbo.nachbrenner.ch
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: api
+                port:
+                  number: 8000
+    - host: admin.pdfdiff-turbo.nachbrenner.ch
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: admin
+                port:
+                  number: 80
+    - host: viewer.pdfdiff-turbo.nachbrenner.ch
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: viewer
+                port:
+                  number: 80
+    - host: flower.pdfdiff-turbo.nachbrenner.ch
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: flower
+                port:
+                  number: 5555

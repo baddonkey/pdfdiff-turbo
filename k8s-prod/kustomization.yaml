@@ -1,0 +1,15 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../k8s/base
+  - ingress.yaml
+  - letsencrypt-clusterissuer.yaml
+  - traefik-redirect.yaml
+patchesStrategicMerge:
+  - patches/api-resources.yaml
+  - patches/worker-resources.yaml
+  - patches/viewer-resources.yaml
+  - patches/admin-resources.yaml
+  - patches/postgres-resources.yaml
+  - patches/rabbitmq-resources.yaml
+  - patches/pvc-storageclass.yaml
