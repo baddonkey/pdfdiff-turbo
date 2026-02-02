@@ -222,3 +222,4 @@ certs/k8s-local/pdfdiff-local.crt
 certs/k8s-local/pdfdiff-local.key
 k8s/overlays/local/tls-secret.yaml
 deploy/package/out
+deploy/images/
