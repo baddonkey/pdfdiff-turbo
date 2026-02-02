@@ -19,16 +19,19 @@ This tool compares two PDF sets by rendering pages and performing pixel-level im
 ## Architecture
 - API: FastAPI (async SQLAlchemy)
 - Worker: Celery tasks with PyMuPDF rendering + OpenCV diff
-- Storage: Shared Docker volume mounted at `/data`
+- Storage: Shared container volume mounted at `/data`
 - UIs: Angular (viewer + admin) served by Nginx
 
-## Quick Start (Docker)
+## Quick Start (Podman)
 1. Start stack:
-   - `docker compose up --build`
+   - `podman compose up --build`
 2. Run migrations:
-   - `docker compose exec api alembic upgrade head`
+   - `podman compose exec api alembic upgrade head`
 3. Seed users:
-   - `docker compose exec api python -m app.seed.seed_users`
+   - `podman compose exec api python -m app.seed.seed_users`
+
+Podman (Windows) install hint:
+- `winget install -e --id RedHat.Podman`
 
 Defaults (override with env vars below):
 - Admin: `admin@example.com` / `admin123`
@@ -70,7 +73,7 @@ API/Worker:
 
 ## Scaling Notes
 - Increase worker concurrency: update `celery worker --concurrency=N`.
-- Add more worker replicas in docker compose or orchestration.
+- Add more worker replicas in podman compose or orchestration.
 - Use a dedicated RabbitMQ and Postgres for production.
 - Consider GPU-enabled workers for faster rendering if available.
 - Move `/data` to a networked volume with high throughput for large PDFs.

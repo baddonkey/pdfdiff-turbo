@@ -93,7 +93,7 @@ The API exposes version information at:
 - `GET /version` - Returns `{"version": "1.0.0"}`
 - `/docs` - Includes version in OpenAPI documentation
 
-## Docker Image Versioning
+## Container Image Versioning
 
 Docker images are tagged with the version:
 - `pdfdiff-turbo-api:1.0.0`
@@ -111,7 +111,7 @@ When releasing a new version:
 3. Commit changes: `git commit -am "chore: bump version to X.Y.Z"`
 4. Tag release: `git tag vX.Y.Z`
 5. Push with tags: `git push && git push --tags`
-6. Build Docker images: `docker-compose build`
+6. Build container images: `podman compose build`
 7. Optional: Push images to registry
 
 ## Example Version History
