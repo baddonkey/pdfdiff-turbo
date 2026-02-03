@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: worker
-          image: localhost/pdfdiff-turbo-worker:1.1.3
+          image: localhost/pdfdiff-turbo-worker:1.1.4
           imagePullPolicy: IfNotPresent
           envFrom:
             - configMapRef:
