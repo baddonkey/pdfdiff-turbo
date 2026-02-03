@@ -22,6 +22,9 @@ This tool compares two PDF sets by rendering pages and performing pixel-level im
 - Storage: Shared container volume mounted at `/data`
 - UIs: Angular (viewer + admin) served by Nginx
 
+## Container Runtime Preference
+This project is intended to be started with Podman Compose (use `podman compose ...`).
+
 ## Quick Start (Podman)
 1. Start stack:
    - `podman compose up --build`
