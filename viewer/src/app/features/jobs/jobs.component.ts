@@ -378,7 +378,13 @@ export class JobsComponent implements OnInit, AfterViewInit, OnDestroy {
       return;
     }
 
-    const relPaths = files.map(item => item.relPath);
+    const pdfFiles = files.filter(item => this.isPdfFile(item.file, item.relPath));
+    if (pdfFiles.length === 0) {
+      this.error = 'No PDF files detected in drop.';
+      return;
+    }
+
+    const relPaths = pdfFiles.map(item => item.relPath);
     const hasFolders = relPaths.some(path => path.includes('/'));
     if (!hasFolders) {
       this.error = 'Please drop folders or a zip file.';
@@ -391,10 +397,10 @@ export class JobsComponent implements OnInit, AfterViewInit, OnDestroy {
       const [aFolder, bFolder] = topFolders;
       this.setALabel = aFolder;
       this.setBLabel = bFolder;
-      this.dropFilesA = files
+      this.dropFilesA = pdfFiles
         .filter(item => item.relPath.startsWith(`${aFolder}/`))
         .map(item => ({ file: item.file, relPath: this.stripPath(item.relPath, 1) }));
-      this.dropFilesB = files
+      this.dropFilesB = pdfFiles
         .filter(item => item.relPath.startsWith(`${bFolder}/`))
         .map(item => ({ file: item.file, relPath: this.stripPath(item.relPath, 1) }));
       this.filesA = this.dropFilesA.map(item => item.file);
@@ -418,10 +424,10 @@ export class JobsComponent implements OnInit, AfterViewInit, OnDestroy {
         const [aFolder, bFolder] = secondFolders;
         this.setALabel = aFolder;
         this.setBLabel = bFolder;
-        this.dropFilesA = files
+        this.dropFilesA = pdfFiles
           .filter(item => item.relPath.includes(`/${aFolder}/`))
           .map(item => ({ file: item.file, relPath: this.stripPath(item.relPath, 2) }));
-        this.dropFilesB = files
+        this.dropFilesB = pdfFiles
           .filter(item => item.relPath.includes(`/${bFolder}/`))
           .map(item => ({ file: item.file, relPath: this.stripPath(item.relPath, 2) }));
         this.filesA = this.dropFilesA.map(item => item.file);
@@ -439,6 +445,11 @@ export class JobsComponent implements OnInit, AfterViewInit, OnDestroy {
   private stripPath(path: string, segments: number) {
     const parts = path.replace(/\\/g, '/').split('/');
     return parts.slice(segments).join('/') || parts[parts.length - 1];
+  }
+
+  private isPdfFile(file: File, relPath: string) {
+    const name = (relPath || file.name).toLowerCase();
+    return name.endsWith('.pdf');
   }
 
   private readDroppedItems(items: DataTransferItemList): Promise<{ file: File; relPath: string }[]> {

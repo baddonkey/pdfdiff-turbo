@@ -113,11 +113,13 @@ services:
     working_dir: /app
     command: sh -c "npm install && npm run start"
     environment:
+      NG_CLI_CACHE_PATH: "/tmp/.angular"
       CHOKIDAR_USEPOLLING: "true"
       WATCHPACK_POLLING: "true"
       CHOKIDAR_INTERVAL: "1000"
     volumes:
       - ./viewer:/app
+      - viewer_angular_cache:/app/.angular
       - /app/node_modules
     ports:
       - "4200:4200"
@@ -151,3 +153,4 @@ services:
 volumes:
   pgdata:
   data:
+  viewer_angular_cache:
