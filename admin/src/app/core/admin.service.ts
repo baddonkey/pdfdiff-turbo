@@ -16,6 +16,11 @@ export interface AdminUser {
   created_at: string;
 }
 
+export interface AppConfig {
+  allow_registration: boolean;
+  enable_dropzone: boolean;
+}
+
 @Injectable({ providedIn: 'root' })
 export class AdminService {
   private baseUrl = '/api/admin';
@@ -36,5 +41,13 @@ export class AdminService {
 
   updateUser(userId: string, payload: Partial<AdminUser>) {
     return this.http.patch(`${this.baseUrl}/users/${userId}`, payload);
+  }
+
+  getConfig() {
+    return this.http.get<AppConfig>(`${this.baseUrl}/config`);
+  }
+
+  updateConfig(payload: Partial<AppConfig>) {
+    return this.http.patch<AppConfig>(`${this.baseUrl}/config`, payload);
   }
 }

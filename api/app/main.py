@@ -6,6 +6,7 @@ from app.core.config import settings
 from app.db.session import engine
 from app.features.admin.router import router as admin_router
 from app.features.auth.router import router as auth_router
+from app.features.config.router import router as config_router
 from app.features.jobs.router import router as jobs_router
 from app.version import API_VERSION
 
@@ -34,6 +35,7 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(jobs_router)
 app.include_router(admin_router)
+app.include_router(config_router)
 
 
 @app.get("/version")

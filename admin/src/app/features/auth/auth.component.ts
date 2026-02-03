@@ -15,7 +15,7 @@ import { AuthService } from '../../core/auth.service';
         <input class="input" [(ngModel)]="email" name="email" type="email" required />
         <label>Password</label>
         <input class="input" [(ngModel)]="password" name="password" type="password" required />
-        <button class="btn" type="submit">Sign In</button>
+        <button class="btn" type="submit" style="margin-top: 10px;">Sign In</button>
       </form>
     </div>
   `

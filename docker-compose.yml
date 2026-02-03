@@ -140,11 +140,13 @@ services:
     working_dir: /app
     command: sh -c "npm install && npm run start -- --port 4201"
     environment:
+      NG_CLI_CACHE_PATH: "/tmp/.angular"
       CHOKIDAR_USEPOLLING: "true"
       WATCHPACK_POLLING: "true"
       CHOKIDAR_INTERVAL: "1000"
     volumes:
       - ./admin:/app
+      - admin_angular_cache:/app/.angular
       - /app/node_modules
     ports:
       - "4201:4201"
@@ -154,3 +156,4 @@ volumes:
   pgdata:
   data:
   viewer_angular_cache:
+  admin_angular_cache:
