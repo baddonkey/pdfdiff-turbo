@@ -13,6 +13,10 @@ export interface AdminUser {
   email: string;
   role: string;
   is_active: boolean;
+  max_files_per_set: number;
+  max_upload_mb: number;
+  max_pages_per_job: number;
+  max_jobs_per_user_per_day: number;
   created_at: string;
 }
 

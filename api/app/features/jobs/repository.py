@@ -1,6 +1,7 @@
 from typing import Iterable, Optional
 
 from sqlalchemy import delete, func, select, update
+from datetime import datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.features.jobs.models import Job, JobFile, JobPageResult
@@ -17,6 +18,18 @@ class JobRepository:
     async def list_for_user(self, user_id: str) -> list[Job]:
         result = await self._session.execute(select(Job).where(Job.user_id == user_id))
         return list(result.scalars().all())
+
+    async def count_for_user_on_day(self, user_id: str, day: datetime) -> int:
+        start = day.replace(hour=0, minute=0, second=0, microsecond=0)
+        end = start + timedelta(days=1)
+        result = await self._session.execute(
+            select(func.count())
+            .select_from(Job)
+            .where(Job.user_id == user_id)
+            .where(Job.created_at >= start)
+            .where(Job.created_at < end)
+        )
+        return int(result.scalar_one() or 0)
 
     async def delete_for_user(self, user_id: str) -> None:
         await self._session.execute(delete(Job).where(Job.user_id == user_id))
