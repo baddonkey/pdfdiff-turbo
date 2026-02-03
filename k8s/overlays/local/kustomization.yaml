@@ -8,16 +8,16 @@ patches:
 images:
   - name: pdfdiff-turbo-api
     newName: localhost/pdfdiff-turbo-api
-    newTag: 1.1.3
+    newTag: 1.1.4
   - name: pdfdiff-turbo-worker
     newName: localhost/pdfdiff-turbo-worker
-    newTag: 1.1.3
+    newTag: 1.1.4
   - name: pdfdiff-turbo-flower
     newName: localhost/pdfdiff-turbo-flower
-    newTag: 1.1.3
+    newTag: 1.1.4
   - name: pdfdiff-turbo-admin
     newName: localhost/pdfdiff-turbo-admin
-    newTag: 1.1.3
+    newTag: 1.1.4
   - name: pdfdiff-turbo-viewer
     newName: localhost/pdfdiff-turbo-viewer
-    newTag: 1.1.3
+    newTag: 1.1.4

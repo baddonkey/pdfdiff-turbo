@@ -81,6 +81,16 @@ def main():
         new_version,
         "viewer/package.json"
     )
+    update_json_version(
+        root / "admin" / "package-lock.json",
+        new_version,
+        "admin/package-lock.json"
+    )
+    update_json_version(
+        root / "viewer" / "package-lock.json",
+        new_version,
+        "viewer/package-lock.json"
+    )
     
     # Update environment.ts files
     update_file(
@@ -102,6 +112,46 @@ def main():
         r'pdfdiff-turbo-(api|worker|flower|viewer|admin):\d+\.\d+\.\d+',
         f'pdfdiff-turbo-\\1:{new_version}',
         "docker-compose.yml image tags"
+    )
+
+    # Update k8s base image tags
+    update_file(
+        root / "k8s" / "base" / "api.yaml",
+        r'pdfdiff-turbo-api:\d+\.\d+\.\d+',
+        f'pdfdiff-turbo-api:{new_version}',
+        "k8s/base/api.yaml image tag"
+    )
+    update_file(
+        root / "k8s" / "base" / "worker.yaml",
+        r'pdfdiff-turbo-worker:\d+\.\d+\.\d+',
+        f'pdfdiff-turbo-worker:{new_version}',
+        "k8s/base/worker.yaml image tag"
+    )
+    update_file(
+        root / "k8s" / "base" / "flower.yaml",
+        r'pdfdiff-turbo-flower:\d+\.\d+\.\d+',
+        f'pdfdiff-turbo-flower:{new_version}',
+        "k8s/base/flower.yaml image tag"
+    )
+    update_file(
+        root / "k8s" / "base" / "viewer.yaml",
+        r'pdfdiff-turbo-viewer:\d+\.\d+\.\d+',
+        f'pdfdiff-turbo-viewer:{new_version}',
+        "k8s/base/viewer.yaml image tag"
+    )
+    update_file(
+        root / "k8s" / "base" / "admin.yaml",
+        r'pdfdiff-turbo-admin:\d+\.\d+\.\d+',
+        f'pdfdiff-turbo-admin:{new_version}',
+        "k8s/base/admin.yaml image tag"
+    )
+
+    # Update k8s local overlay tags
+    update_file(
+        root / "k8s" / "overlays" / "local" / "kustomization.yaml",
+        r'newTag:\s*\d+\.\d+\.\d+',
+        f'newTag: {new_version}',
+        "k8s/overlays/local/kustomization.yaml newTag entries"
     )
     
     print()
