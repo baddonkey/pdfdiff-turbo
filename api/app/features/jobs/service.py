@@ -7,6 +7,8 @@ from pathlib import Path, PurePosixPath
 from typing import Iterable
 from datetime import datetime
 
+import fitz
+
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -125,16 +127,36 @@ class JobService:
             rel_path = ensure_relative_path(rel)
             write_bytes(target_dir, rel_path, data)
 
-    async def start_job(self, job: Job) -> JobStartedMessage:
+    async def start_job(
+        self,
+        job: Job,
+        max_files_per_set: int | None = None,
+        max_pages_per_job: int | None = None,
+    ) -> JobStartedMessage:
         set_a_dir = self._job_dir(str(job.id), "setA")
         set_b_dir = self._job_dir(str(job.id), "setB")
         set_a = list_relative_files(set_a_dir)
         set_b = list_relative_files(set_b_dir)
 
+        if max_files_per_set is not None:
+            if len(set_a) > max_files_per_set or len(set_b) > max_files_per_set:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Max files per set exceeded",
+                )
+
         await self._file_repo.delete_for_job(job.id)
         job.has_diffs = False
 
         pairs = self._pair_paths(set_a, set_b)
+
+        if max_pages_per_job is not None:
+            total_pages = self._count_pages_for_pairs(str(job.id), pairs)
+            if total_pages > max_pages_per_job:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Max pages per job exceeded",
+                )
         files = [
             JobFile(
                 job_id=job.id,
@@ -397,6 +419,42 @@ class JobService:
         if set_name not in {"setA", "setB"}:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid set")
         return Path(settings.data_dir) / "jobs" / job_id / set_name
+
+    @staticmethod
+    def _count_pages_for_pairs(job_id: str, pairs: Iterable[dict[str, str | bool | None]]) -> int:
+        total = 0
+        for pair in pairs:
+            rel = pair.get("relative_path")
+            if not rel:
+                continue
+            count_a = 0
+            count_b = 0
+            set_a_path = pair.get("set_a_path")
+            set_b_path = pair.get("set_b_path")
+            if set_a_path:
+                path_a = Path(settings.data_dir) / "jobs" / job_id / "setA" / set_a_path
+                if path_a.exists():
+                    try:
+                        with fitz.open(path_a) as doc_a:
+                            count_a = doc_a.page_count
+                    except Exception as exc:
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail=f"Failed to read PDF: {path_a.name}",
+                        ) from exc
+            if set_b_path:
+                path_b = Path(settings.data_dir) / "jobs" / job_id / "setB" / set_b_path
+                if path_b.exists():
+                    try:
+                        with fitz.open(path_b) as doc_b:
+                            count_b = doc_b.page_count
+                    except Exception as exc:
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail=f"Failed to read PDF: {path_b.name}",
+                        ) from exc
+            total += max(count_a, count_b)
+        return total
 
     async def generate_report(self, job: Job) -> bytes:
         """Generate a comprehensive PDF comparison report"""

@@ -1,4 +1,5 @@
 from pathlib import Path
+from datetime import datetime
 
 from typing import Iterable
 
@@ -192,8 +193,16 @@ async def options_jobs() -> Response:
 @router.post("", response_model=JobCreatedMessage)
 async def create_job(
     service: JobService = Depends(get_job_service),
+    repo=Depends(get_job_repository),
     user: User = Depends(get_current_user),
 ) -> JobCreatedMessage:
+    if user.max_jobs_per_user_per_day and user.max_jobs_per_user_per_day > 0:
+        today_count = await repo.count_for_user_on_day(str(user.id), datetime.utcnow())
+        if today_count >= user.max_jobs_per_user_per_day:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Daily job limit exceeded",
+            )
     return await service.create_job(str(user.id))
 
 @router.get("/samples")
@@ -256,12 +265,18 @@ async def upload_job_files(
     config = await config_service.get_config()
     if not config.enable_dropzone:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Dropzone disabled")
+    max_upload_bytes = user.max_upload_mb * 1024 * 1024
     job = await repo.get_by_id_and_user(job_id, str(user.id))
     if not job:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
 
     if zip_file is not None:
         zip_bytes = await zip_file.read()
+        if max_upload_bytes and len(zip_bytes) > max_upload_bytes:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail="Upload size limit exceeded",
+            )
         await service.upload_zip(job, "setA" if set_name == "A" else "setB", zip_bytes)
         return {"status": "ok", "mode": "zip"}
 
@@ -269,8 +284,16 @@ async def upload_job_files(
         if not relative_paths or len(relative_paths) != len(files):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="relative_paths required for multipart")
         payload = []
+        total_size = 0
         for upload, rel in zip(files, relative_paths):
-            payload.append((rel, await upload.read()))
+            data = await upload.read()
+            total_size += len(data)
+            if max_upload_bytes and total_size > max_upload_bytes:
+                raise HTTPException(
+                    status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                    detail="Upload size limit exceeded",
+                )
+            payload.append((rel, data))
         await service.upload_multipart(job, "setA" if set_name == "A" else "setB", payload)
         return {"status": "ok", "mode": "multipart"}
 
@@ -289,10 +312,16 @@ async def upload_job_zip_sets(
     config = await config_service.get_config()
     if not config.enable_dropzone:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Dropzone disabled")
+    max_upload_bytes = user.max_upload_mb * 1024 * 1024
     job = await repo.get_by_id_and_user(job_id, str(user.id))
     if not job:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
     zip_bytes = await zip_file.read()
+    if max_upload_bytes and len(zip_bytes) > max_upload_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="Upload size limit exceeded",
+        )
     await service.upload_zip_sets(job, zip_bytes)
     return {"status": "ok", "mode": "zip_sets"}
 
@@ -328,7 +357,11 @@ async def start_job(
         job.set_a_label = set_a_label
     if set_b_label:
         job.set_b_label = set_b_label
-    return await service.start_job(job)
+    return await service.start_job(
+        job,
+        max_files_per_set=user.max_files_per_set,
+        max_pages_per_job=user.max_pages_per_job,
+    )
 
 
 @router.post("/{job_id}/continue", response_model=JobStartedMessage)

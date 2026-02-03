@@ -77,6 +77,10 @@ import { TopbarActionsService } from '../../core/topbar-actions.service';
               <th>Email</th>
               <th>Role</th>
               <th>Active</th>
+              <th>Max files/set</th>
+              <th>Max upload (MB)</th>
+              <th>Max pages/job</th>
+              <th>Max jobs/day</th>
               <th></th>
             </tr>
           </thead>
@@ -95,6 +99,10 @@ import { TopbarActionsService } from '../../core/topbar-actions.service';
                   <option [ngValue]="false">inactive</option>
                 </select>
               </td>
+              <td><input class="input" type="number" min="1" [(ngModel)]="user.max_files_per_set" /></td>
+              <td><input class="input" type="number" min="1" [(ngModel)]="user.max_upload_mb" /></td>
+              <td><input class="input" type="number" min="1" [(ngModel)]="user.max_pages_per_job" /></td>
+              <td><input class="input" type="number" min="1" [(ngModel)]="user.max_jobs_per_user_per_day" /></td>
               <td>
                 <button class="btn" (click)="saveUser(user)">Save</button>
               </td>
@@ -176,7 +184,14 @@ export class AdminDashboardComponent implements AfterViewInit, OnDestroy {
   }
 
   saveUser(user: AdminUser) {
-    this.admin.updateUser(user.id, { role: user.role, is_active: user.is_active }).subscribe();
+    this.admin.updateUser(user.id, {
+      role: user.role,
+      is_active: user.is_active,
+      max_files_per_set: user.max_files_per_set,
+      max_upload_mb: user.max_upload_mb,
+      max_pages_per_job: user.max_pages_per_job,
+      max_jobs_per_user_per_day: user.max_jobs_per_user_per_day
+    }).subscribe();
   }
 
   loadConfig() {
