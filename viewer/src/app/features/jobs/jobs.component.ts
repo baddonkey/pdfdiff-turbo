@@ -5,6 +5,7 @@ import { Router, RouterLink } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { JobsService, JobFile, JobSummary } from '../../core/jobs.service';
 import { TopbarActionsService } from '../../core/topbar-actions.service';
+import { AppConfigService } from '../../core/app-config.service';
 
 @Component({
   selector: 'app-jobs',
@@ -20,6 +21,7 @@ import { TopbarActionsService } from '../../core/topbar-actions.service';
             [style.color]="activeTab === 'dropzone' ? '#0f172a' : 'var(--theme-primary)'"
             [style.border]="activeTab === 'dropzone' ? '1px solid #cbd5f5' : '1px solid var(--theme-primary)'"
             (click)="setTab('dropzone')"
+            *ngIf="dropzoneEnabled"
           >Dropzone</button>
           <button
             class="btn secondary"
@@ -30,7 +32,7 @@ import { TopbarActionsService } from '../../core/topbar-actions.service';
           >Jobs</button>
         </div>
       </ng-template>
-      <ng-container *ngIf="activeTab === 'dropzone'">
+      <ng-container *ngIf="activeTab === 'dropzone' && dropzoneEnabled">
         <div style="grid-column: 1 / -1; display:flex; flex-direction:column; gap: 16px;">
           <div
             class="card"
@@ -176,6 +178,7 @@ import { TopbarActionsService } from '../../core/topbar-actions.service';
 export class JobsComponent implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild('topbarActions', { static: true }) topbarActionsTpl!: TemplateRef<any>;
   activeTab: 'dropzone' | 'jobs' = 'dropzone';
+  dropzoneEnabled = true;
   private jobsSub?: Subscription;
   get selectedJob() {
     return this.jobList.find(job => job.id === this.jobId) || null;
@@ -202,9 +205,25 @@ export class JobsComponent implements OnInit, AfterViewInit, OnDestroy {
   recentProgress: Record<string, import('../../core/jobs.service').JobProgress> = {};
   generatingReport: Record<string, boolean> = {};
 
-  constructor(private jobsService: JobsService, private topbar: TopbarActionsService, private router: Router) {}
+  constructor(
+    private jobsService: JobsService,
+    private topbar: TopbarActionsService,
+    private router: Router,
+    private config: AppConfigService
+  ) {}
 
   ngOnInit() {
+    this.config.getConfig().subscribe({
+      next: cfg => {
+        this.dropzoneEnabled = cfg.enable_dropzone;
+        if (!this.dropzoneEnabled && this.activeTab === 'dropzone') {
+          this.activeTab = 'jobs';
+        }
+      },
+      error: () => {
+        this.dropzoneEnabled = true;
+      }
+    });
     this.loadJobs();
     this.jobsSub = this.jobsService.watchJobs().subscribe({
       next: jobs => {
@@ -215,6 +234,10 @@ export class JobsComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   setTab(tab: 'dropzone' | 'jobs') {
+    if (tab === 'dropzone' && !this.dropzoneEnabled) {
+      this.activeTab = 'jobs';
+      return;
+    }
     this.activeTab = tab;
   }
 

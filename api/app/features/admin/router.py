@@ -5,6 +5,9 @@ from app.features.admin.schemas import AdminJobMessage, AdminUserMessage, AdminU
 from app.features.admin.service import AdminService
 from app.features.auth.deps import require_admin
 from app.features.auth.models import User
+from app.features.config.deps import get_app_config_service
+from app.features.config.schemas import AppConfigMessage, AppConfigUpdateCommand
+from app.features.config.service import AppConfigService
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_admin)])
 
@@ -32,3 +35,16 @@ async def update_user(
     admin: User = Depends(require_admin),
 ) -> AdminUserMessage:
     return await service.update_user(user_id, command)
+
+
+@router.get("/config", response_model=AppConfigMessage)
+async def get_config(service: AppConfigService = Depends(get_app_config_service)) -> AppConfigMessage:
+    return await service.get_config()
+
+
+@router.patch("/config", response_model=AppConfigMessage)
+async def update_config(
+    command: AppConfigUpdateCommand,
+    service: AppConfigService = Depends(get_app_config_service),
+) -> AppConfigMessage:
+    return await service.update_config(command)

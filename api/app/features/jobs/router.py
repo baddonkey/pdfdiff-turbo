@@ -15,6 +15,8 @@ from app.features.auth.security import decode_token
 from app.features.auth.repository import UserRepository
 from app.db.session import SessionLocal
 from app.features.jobs.deps import get_job_service, get_job_repository, get_job_file_repository, get_job_page_result_repository
+from app.features.config.deps import get_app_config_service
+from app.features.config.service import AppConfigService
 from app.features.jobs.schemas import (
     JobCreatedMessage,
     JobFileMessage,
@@ -249,7 +251,11 @@ async def upload_job_files(
     service: JobService = Depends(get_job_service),
     repo=Depends(get_job_repository),
     user: User = Depends(get_current_user),
+    config_service: AppConfigService = Depends(get_app_config_service),
 ) -> dict:
+    config = await config_service.get_config()
+    if not config.enable_dropzone:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Dropzone disabled")
     job = await repo.get_by_id_and_user(job_id, str(user.id))
     if not job:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
@@ -278,7 +284,11 @@ async def upload_job_zip_sets(
     service: JobService = Depends(get_job_service),
     repo=Depends(get_job_repository),
     user: User = Depends(get_current_user),
+    config_service: AppConfigService = Depends(get_app_config_service),
 ) -> dict:
+    config = await config_service.get_config()
+    if not config.enable_dropzone:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Dropzone disabled")
     job = await repo.get_by_id_and_user(job_id, str(user.id))
     if not job:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")

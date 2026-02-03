@@ -1,8 +1,9 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { AuthService } from '../../core/auth.service';
+import { AppConfigService } from '../../core/app-config.service';
 
 @Component({
   selector: 'app-auth',
@@ -17,33 +18,51 @@ import { AuthService } from '../../core/auth.service';
           <input class="input" [(ngModel)]="loginEmail" name="loginEmail" type="email" required />
           <label>Password</label>
           <input class="input" [(ngModel)]="loginPassword" name="loginPassword" type="password" required />
-          <button class="btn" type="submit">Sign In</button>
+          <button class="btn" type="submit" style="margin-top: 10px;">Sign In</button>
         </form>
         <p *ngIf="error" style="color:#b91c1c;">{{ error }}</p>
       </div>
-      <div class="card">
+      <div class="card" *ngIf="registrationEnabled; else registrationDisabled">
         <h2>Create Account</h2>
         <form (ngSubmit)="register()">
           <label>Email</label>
           <input class="input" [(ngModel)]="registerEmail" name="registerEmail" type="email" required />
           <label>Password</label>
           <input class="input" [(ngModel)]="registerPassword" name="registerPassword" type="password" required />
-          <button class="btn secondary" type="submit">Register</button>
+          <button class="btn secondary" type="submit" style="margin-top: 10px;">Register</button>
         </form>
         <p *ngIf="message" style="color:#166534;">{{ message }}</p>
       </div>
+      <ng-template #registrationDisabled>
+        <div class="card">
+          <h2>Registration</h2>
+          <p style="color:#64748b;">Registration is currently disabled.</p>
+        </div>
+      </ng-template>
     </div>
   `
 })
-export class AuthComponent {
+export class AuthComponent implements OnInit {
   loginEmail = '';
   loginPassword = '';
   registerEmail = '';
   registerPassword = '';
   message = '';
   error = '';
+  registrationEnabled = true;
 
-  constructor(private auth: AuthService, private router: Router) {}
+  constructor(private auth: AuthService, private router: Router, private config: AppConfigService) {}
+
+  ngOnInit() {
+    this.config.getConfig().subscribe({
+      next: cfg => {
+        this.registrationEnabled = cfg.allow_registration;
+      },
+      error: () => {
+        this.registrationEnabled = true;
+      }
+    });
+  }
 
   login() {
     this.message = '';
