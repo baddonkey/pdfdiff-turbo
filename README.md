@@ -88,3 +88,9 @@ API/Worker:
 ## Notes
 - Incompatible page sizes are marked `incompatible_size` and have `diff_score=null`.
 - Missing pages are tracked per file and per page.
+
+
+## Disable flower
+```
+KUBECONFIG=/etc/rancher/k3s/k3s.yaml kubectl -n pdfdiff scale deployment flower --replicas=0
+```
