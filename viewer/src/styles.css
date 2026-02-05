@@ -156,6 +156,7 @@ a {
   flex: 1;
 }
 
+
 .btn {
   background: var(--theme-primary);
   color: var(--theme-primary-contrast);
@@ -164,6 +165,11 @@ a {
   padding: 10px 16px;
   font-weight: 600;
   cursor: pointer;
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .btn.secondary {

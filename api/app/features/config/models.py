@@ -16,4 +16,6 @@ class AppConfig(Base):
     max_upload_mb: Mapped[int] = mapped_column(Integer, default=10, nullable=False)
     max_pages_per_job: Mapped[int] = mapped_column(Integer, default=10000, nullable=False)
     max_jobs_per_user_per_day: Mapped[int] = mapped_column(Integer, default=20, nullable=False)
+    file_retention_hours: Mapped[int] = mapped_column(Integer, default=24, nullable=False)
+    job_retention_days: Mapped[int] = mapped_column(Integer, default=7, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)

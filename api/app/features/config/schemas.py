@@ -8,6 +8,8 @@ class AppConfigMessage(BaseModel):
     max_upload_mb: int
     max_pages_per_job: int
     max_jobs_per_user_per_day: int
+    file_retention_hours: int
+    job_retention_days: int
 
 
 class AppConfigUpdateCommand(BaseModel):
@@ -17,3 +19,5 @@ class AppConfigUpdateCommand(BaseModel):
     max_upload_mb: int | None = None
     max_pages_per_job: int | None = None
     max_jobs_per_user_per_day: int | None = None
+    file_retention_hours: int | None = None
+    job_retention_days: int | None = None
