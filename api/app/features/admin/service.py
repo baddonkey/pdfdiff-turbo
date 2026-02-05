@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.features.admin.repository import AdminRepository
 from app.features.admin.schemas import AdminJobMessage, AdminUserMessage, AdminUserUpdateCommand
 from app.features.auth.models import UserRole
+from app.core.celery_app import celery_app
 from app.features.jobs.service import JobService
 
 
@@ -87,3 +88,7 @@ class AdminService:
             max_jobs_per_user_per_day=user.max_jobs_per_user_per_day,
             created_at=user.created_at,
         )
+
+    async def trigger_cleanup(self) -> dict:
+        celery_app.send_task("cleanup_retention")
+        return {"status": "ok"}

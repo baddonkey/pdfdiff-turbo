@@ -19,6 +19,7 @@ export interface JobSummary {
   set_a_label?: string | null;
   set_b_label?: string | null;
   created_at: string;
+  files_available?: boolean;
   progress?: JobProgress;
 }
 

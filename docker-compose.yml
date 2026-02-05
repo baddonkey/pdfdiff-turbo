@@ -80,6 +80,30 @@ services:
     command: celery -A app.core.celery_app.celery_app worker --loglevel=INFO --pool=solo --concurrency=1
     restart: unless-stopped
 
+  beat:
+    build: 
+      context: .
+      dockerfile: ./api/Dockerfile
+    image: pdfdiff-turbo-beat:1.1.4
+    environment:
+      PROJECT_NAME: pdfdiff-turbo
+      DATABASE_URL: postgresql+asyncpg://pdfdiff:pdfdiff@postgres:5432/pdfdiff
+      CELERY_BROKER_URL: amqp://guest:guest@rabbitmq:5672//
+      CELERY_RESULT_BACKEND: rpc://
+      DATA_DIR: /data
+      JWT_SECRET: change-me
+      RENDER_DPI: "150"
+    volumes:
+      - data:/data
+      - ./samples:/data/samples:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    command: celery -A app.core.celery_app.celery_app beat --loglevel=INFO
+    restart: unless-stopped
+
   flower:
     build: 
       context: .

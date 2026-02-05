@@ -24,6 +24,7 @@ class JobStatusMessage(BaseModel):
     set_a_label: str | None = None
     set_b_label: str | None = None
     has_diffs: bool = False
+    files_available: bool = True
     created_at: datetime
 
 
@@ -34,6 +35,7 @@ class JobSummaryMessage(BaseModel):
     set_a_label: str | None = None
     set_b_label: str | None = None
     has_diffs: bool = False
+    files_available: bool = True
     created_at: datetime
 
 
