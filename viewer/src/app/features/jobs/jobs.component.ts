@@ -75,11 +75,17 @@ import { AppConfigService } from '../../core/app-config.service';
                   </div>
                 </div>
                 <div style="display:flex; gap: 8px;">
-                  <button class="btn secondary" (click)="openJobDetails(job.id)">Compare</button>
+                  <button
+                    class="btn secondary"
+                    (click)="openJobDetails(job.id)"
+                    [disabled]="job.files_available === false"
+                    [attr.title]="job.files_available === false ? retentionMessage : null"
+                  >Compare</button>
                   <button 
                     class="btn secondary" 
                     (click)="downloadReport(job.id)"
-                    [disabled]="generatingReport[job.id]"
+                    [disabled]="generatingReport[job.id] || job.files_available === false"
+                    [attr.title]="job.files_available === false ? retentionMessage : null"
                   >
                     {{ generatingReport[job.id] ? 'Generating...' : 'Report' }}
                   </button>
@@ -139,11 +145,17 @@ import { AppConfigService } from '../../core/app-config.service';
               </div>
             </div>
             <div style="display:flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end;">
-              <button class="btn secondary" (click)="$event.stopPropagation(); openJobDetails(job.id)">Compare</button>
+              <button
+                class="btn secondary"
+                (click)="$event.stopPropagation(); openJobDetails(job.id)"
+                [disabled]="job.files_available === false"
+                [attr.title]="job.files_available === false ? retentionMessage : null"
+              >Compare</button>
               <button
                 class="btn secondary"
                 (click)="$event.stopPropagation(); downloadReport(job.id)"
-                [disabled]="generatingReport[job.id]"
+                [disabled]="generatingReport[job.id] || job.files_available === false"
+                [attr.title]="job.files_available === false ? retentionMessage : null"
               >{{ generatingReport[job.id] ? 'Generating...' : 'Report' }}</button>
               <button
                 class="btn"
@@ -204,6 +216,7 @@ export class JobsComponent implements OnInit, AfterViewInit, OnDestroy {
   jobProgress: import('../../core/jobs.service').JobProgress | null = null;
   recentProgress: Record<string, import('../../core/jobs.service').JobProgress> = {};
   generatingReport: Record<string, boolean> = {};
+  retentionMessage = 'Files are kept for a limited time. After cleanup, comparisons and reports are not available.';
 
   constructor(
     private jobsService: JobsService,

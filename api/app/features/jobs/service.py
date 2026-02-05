@@ -253,6 +253,7 @@ class JobService:
             set_a_label=job.set_a_label,
             set_b_label=job.set_b_label,
             has_diffs=job.has_diffs,
+            files_available=self._files_available(str(job.id)),
             created_at=job.created_at,
         )
 
@@ -266,6 +267,7 @@ class JobService:
                 set_a_label=job.set_a_label,
                 set_b_label=job.set_b_label,
                 has_diffs=job.has_diffs,
+                files_available=self._files_available(str(job.id)),
                 created_at=job.created_at,
             )
             for job in jobs
@@ -419,6 +421,18 @@ class JobService:
         if set_name not in {"setA", "setB"}:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid set")
         return Path(settings.data_dir) / "jobs" / job_id / set_name
+
+    @staticmethod
+    def _files_available(job_id: str) -> bool:
+        job_dir = Path(settings.data_dir) / "jobs" / job_id
+        for set_name in ("setA", "setB"):
+            target = job_dir / set_name
+            if not target.exists():
+                continue
+            for path in target.rglob("*"):
+                if path.is_file():
+                    return True
+        return False
 
     @staticmethod
     def _count_pages_for_pairs(job_id: str, pairs: Iterable[dict[str, str | bool | None]]) -> int:

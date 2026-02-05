@@ -23,6 +23,8 @@ export interface AdminUser {
 export interface AppConfig {
   allow_registration: boolean;
   enable_dropzone: boolean;
+  file_retention_hours: number;
+  job_retention_days: number;
 }
 
 @Injectable({ providedIn: 'root' })

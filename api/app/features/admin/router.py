@@ -48,3 +48,8 @@ async def update_config(
     service: AppConfigService = Depends(get_app_config_service),
 ) -> AppConfigMessage:
     return await service.update_config(command)
+
+
+@router.post("/cleanup")
+async def trigger_cleanup(service: AdminService = Depends(get_admin_service)) -> dict:
+    return await service.trigger_cleanup()

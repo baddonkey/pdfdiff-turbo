@@ -126,6 +126,14 @@ import { TopbarActionsService } from '../../core/topbar-actions.service';
             <input type="checkbox" [(ngModel)]="config.enable_dropzone" />
             <span>Enable dropzone</span>
           </label>
+          <label style="display:grid; gap: 6px;">
+            <span>Keep files for (hours)</span>
+            <input class="input" type="number" min="1" [(ngModel)]="config.file_retention_hours" />
+          </label>
+          <label style="display:grid; gap: 6px;">
+            <span>Keep job data for (days)</span>
+            <input class="input" type="number" min="1" [(ngModel)]="config.job_retention_days" />
+          </label>
           <div style="display:flex; gap: 8px; align-items:center;">
             <button class="btn" (click)="saveConfig()">Save</button>
           </div>
@@ -215,7 +223,9 @@ export class AdminDashboardComponent implements AfterViewInit, OnDestroy {
     this.configError = '';
     this.admin.updateConfig({
       allow_registration: this.config.allow_registration,
-      enable_dropzone: this.config.enable_dropzone
+      enable_dropzone: this.config.enable_dropzone,
+      file_retention_hours: this.config.file_retention_hours,
+      job_retention_days: this.config.job_retention_days
     }).subscribe({
       next: config => {
         this.config = { ...config };

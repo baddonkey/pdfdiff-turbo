@@ -1,4 +1,5 @@
 from celery import Celery
+from celery.schedules import crontab
 
 from app.core.config import settings
 
@@ -10,3 +11,10 @@ celery_app.conf.result_extended = True
 celery_app.conf.worker_send_task_events = True
 celery_app.conf.task_send_sent_event = True
 celery_app.conf.include = ["app.worker.tasks"]
+celery_app.conf.timezone = "UTC"
+celery_app.conf.beat_schedule = {
+	"cleanup-retention-daily": {
+		"task": "cleanup_retention",
+		"schedule": crontab(minute=0, hour=2),
+	}
+}
