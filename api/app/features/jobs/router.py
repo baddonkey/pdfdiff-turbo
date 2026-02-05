@@ -91,6 +91,7 @@ async def jobs_ws(
                         set_a_label=job.set_a_label,
                         set_b_label=job.set_b_label,
                         has_diffs=job.has_diffs,
+                        files_available=JobService._files_available(str(job.id)),
                         created_at=job.created_at,
                     ).dict()
                     item["created_at"] = job.created_at.isoformat()

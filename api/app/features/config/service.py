@@ -1,3 +1,4 @@
+from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.features.config.models import AppConfig
@@ -24,6 +25,8 @@ class AppConfigService:
             max_upload_mb=config.max_upload_mb,
             max_pages_per_job=config.max_pages_per_job,
             max_jobs_per_user_per_day=config.max_jobs_per_user_per_day,
+            file_retention_hours=config.file_retention_hours,
+            job_retention_days=config.job_retention_days,
         )
 
     async def update_config(self, command: AppConfigUpdateCommand) -> AppConfigMessage:
@@ -43,6 +46,14 @@ class AppConfigService:
             config.max_pages_per_job = command.max_pages_per_job
         if command.max_jobs_per_user_per_day is not None:
             config.max_jobs_per_user_per_day = command.max_jobs_per_user_per_day
+        if command.file_retention_hours is not None:
+            if command.file_retention_hours < 1:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="file_retention_hours must be >= 1")
+            config.file_retention_hours = command.file_retention_hours
+        if command.job_retention_days is not None:
+            if command.job_retention_days < 1:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="job_retention_days must be >= 1")
+            config.job_retention_days = command.job_retention_days
         await self._session.commit()
         await self._session.refresh(config)
         return AppConfigMessage(
@@ -52,4 +63,6 @@ class AppConfigService:
             max_upload_mb=config.max_upload_mb,
             max_pages_per_job=config.max_pages_per_job,
             max_jobs_per_user_per_day=config.max_jobs_per_user_per_day,
+            file_retention_hours=config.file_retention_hours,
+            job_retention_days=config.job_retention_days,
         )

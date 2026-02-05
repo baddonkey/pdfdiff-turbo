@@ -1,20 +1,23 @@
 import asyncio
+import shutil
 import uuid
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Iterable
 
 import cv2
 import fitz
 import numpy as np
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
 from app.core.celery_app import celery_app
 from app.core.config import settings
 import app.models  # noqa: F401
+from app.features.config.models import AppConfig
 from app.features.jobs.models import Job, JobFile, JobPageResult, JobStatus, PageStatus
-from app.features.jobs.repository import JobFileRepository
+from app.features.jobs.repository import JobFileRepository, JobPageResultRepository
 
 
 @celery_app.task(name="run_job")
@@ -25,6 +28,11 @@ def run_job(job_id: str) -> None:
 @celery_app.task(name="compare_page")
 def compare_page(page_result_id: str) -> None:
     asyncio.run(_compare_page_async(page_result_id))
+
+
+@celery_app.task(name="cleanup_retention")
+def cleanup_retention() -> None:
+    asyncio.run(_cleanup_retention_async())
 
 
 async def _run_job_async(job_id: str) -> None:
@@ -184,8 +192,50 @@ async def _compare_page_async(page_result_id: str) -> None:
     await engine.dispose()
 
 
+async def _cleanup_retention_async() -> None:
+    engine = create_async_engine(settings.database_url, poolclass=NullPool)
+    sessionmaker = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async with sessionmaker() as session:
+        config = await _get_app_config(session)
+        file_retention_hours = max(1, config.file_retention_hours if config else 24)
+        job_retention_days = max(1, config.job_retention_days if config else 7)
+        now = datetime.utcnow()
+        file_cutoff = now - timedelta(hours=file_retention_hours)
+        job_cutoff = now - timedelta(days=job_retention_days)
+
+        result = await session.execute(
+            select(Job.id, Job.status).where(Job.created_at < file_cutoff)
+        )
+        for job_id, status in result.all():
+            if status == JobStatus.running:
+                continue
+            job_dir = Path(settings.data_dir) / "jobs" / str(job_id)
+            shutil.rmtree(job_dir, ignore_errors=True)
+
+        result = await session.execute(select(Job).where(Job.created_at < job_cutoff))
+        jobs = list(result.scalars().all())
+        page_repo = JobPageResultRepository(session)
+        file_repo = JobFileRepository(session)
+        for job in jobs:
+            if job.status == JobStatus.running:
+                continue
+            await page_repo.delete_for_job(job.id)
+            await file_repo.delete_for_job(job.id)
+            await session.execute(delete(Job).where(Job.id == job.id))
+            job_dir = Path(settings.data_dir) / "jobs" / str(job.id)
+            shutil.rmtree(job_dir, ignore_errors=True)
+
+        await session.commit()
+    await engine.dispose()
+
+
 async def _get_job(session: AsyncSession, job_id: uuid.UUID) -> Job | None:
     result = await session.execute(select(Job).where(Job.id == job_id))
+    return result.scalar_one_or_none()
+
+
+async def _get_app_config(session: AsyncSession) -> AppConfig | None:
+    result = await session.execute(select(AppConfig).order_by(AppConfig.id).limit(1))
     return result.scalar_one_or_none()
 
 
