@@ -34,7 +34,7 @@ services:
     build: 
       context: .
       dockerfile: ./api/Dockerfile
-    image: pdfdiff-turbo-api:1.1.6
+    image: pdfdiff-turbo-api:1.1.7
     environment:
       PROJECT_NAME: pdfdiff-turbo
       DATABASE_URL: postgresql+asyncpg://pdfdiff:pdfdiff@postgres:5432/pdfdiff
@@ -60,7 +60,7 @@ services:
     build: 
       context: .
       dockerfile: ./api/Dockerfile
-    image: pdfdiff-turbo-worker:1.1.6
+    image: pdfdiff-turbo-worker:1.1.7
     environment:
       PROJECT_NAME: pdfdiff-turbo
       DATABASE_URL: postgresql+asyncpg://pdfdiff:pdfdiff@postgres:5432/pdfdiff
@@ -84,7 +84,7 @@ services:
     build: 
       context: .
       dockerfile: ./api/Dockerfile
-    image: pdfdiff-turbo-beat:1.1.5
+    image: pdfdiff-turbo-beat:1.1.7
     environment:
       PROJECT_NAME: pdfdiff-turbo
       DATABASE_URL: postgresql+asyncpg://pdfdiff:pdfdiff@postgres:5432/pdfdiff
@@ -108,7 +108,7 @@ services:
     build: 
       context: .
       dockerfile: ./api/Dockerfile
-    image: pdfdiff-turbo-flower:1.1.6
+    image: pdfdiff-turbo-flower:1.1.7
     environment:
       CELERY_BROKER_URL: amqp://guest:guest@rabbitmq:5672//
       CELERY_RESULT_BACKEND: rpc://
@@ -122,7 +122,7 @@ services:
 
   viewer:
     build: ./viewer
-    image: pdfdiff-turbo-viewer:1.1.6
+    image: pdfdiff-turbo-viewer:1.1.7
     profiles:
       - prod
     ports:
@@ -151,7 +151,7 @@ services:
 
   admin:
     build: ./admin
-    image: pdfdiff-turbo-admin:1.1.6
+    image: pdfdiff-turbo-admin:1.1.7
     ports:
       - "8081:80"
       - "8444:443"
