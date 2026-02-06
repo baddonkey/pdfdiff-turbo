@@ -90,7 +90,16 @@ def main():
     dirty = check_git_status()
     if dirty:
         # Filter out version-related files
-        version_files = ['VERSION', 'package.json', 'environment.ts', 'docker-compose.yml']
+        version_files = [
+            'VERSION',
+            'package.json',
+            'package-lock.json',
+            'environment.ts',
+            'docker-compose.yml',
+            'k8s/base',
+            'k8s/overlays',
+            'k8s-prod',
+        ]
         other_changes = [line for line in dirty.split('\n') 
                         if not any(vf in line for vf in version_files)]
         if other_changes:
@@ -116,6 +125,12 @@ def main():
     
     update_json_version(root / "viewer" / "package.json", new_version)
     print(f"  ✓ Updated viewer/package.json")
+
+    update_json_version(root / "admin" / "package-lock.json", new_version)
+    print(f"  ✓ Updated admin/package-lock.json")
+
+    update_json_version(root / "viewer" / "package-lock.json", new_version)
+    print(f"  ✓ Updated viewer/package-lock.json")
     
     if update_file(
         root / "admin" / "src" / "environments" / "environment.ts",
@@ -137,6 +152,64 @@ def main():
         f'pdfdiff-turbo-\\1:{new_version}'
     )
     print(f"  ✓ Updated docker-compose.yml")
+
+    # Update k8s base image tags
+    update_file(
+        root / "k8s" / "base" / "api.yaml",
+        r'(?P<prefix>[^\s"\']*/)?pdfdiff-turbo-api:\d+\.\d+\.\d+',
+        f'\\g<prefix>pdfdiff-turbo-api:{new_version}'
+    )
+    print(f"  ✓ Updated k8s/base/api.yaml")
+
+    update_file(
+        root / "k8s" / "base" / "worker.yaml",
+        r'(?P<prefix>[^\s"\']*/)?pdfdiff-turbo-worker:\d+\.\d+\.\d+',
+        f'\\g<prefix>pdfdiff-turbo-worker:{new_version}'
+    )
+    print(f"  ✓ Updated k8s/base/worker.yaml")
+
+    update_file(
+        root / "k8s" / "base" / "beat.yaml",
+        r'(?P<prefix>[^\s"\']*/)?pdfdiff-turbo-beat:\d+\.\d+\.\d+',
+        f'\\g<prefix>pdfdiff-turbo-beat:{new_version}'
+    )
+    print(f"  ✓ Updated k8s/base/beat.yaml")
+
+    update_file(
+        root / "k8s" / "base" / "flower.yaml",
+        r'(?P<prefix>[^\s"\']*/)?pdfdiff-turbo-flower:\d+\.\d+\.\d+',
+        f'\\g<prefix>pdfdiff-turbo-flower:{new_version}'
+    )
+    print(f"  ✓ Updated k8s/base/flower.yaml")
+
+    update_file(
+        root / "k8s" / "base" / "viewer.yaml",
+        r'(?P<prefix>[^\s"\']*/)?pdfdiff-turbo-viewer:\d+\.\d+\.\d+',
+        f'\\g<prefix>pdfdiff-turbo-viewer:{new_version}'
+    )
+    print(f"  ✓ Updated k8s/base/viewer.yaml")
+
+    update_file(
+        root / "k8s" / "base" / "admin.yaml",
+        r'(?P<prefix>[^\s"\']*/)?pdfdiff-turbo-admin:\d+\.\d+\.\d+',
+        f'\\g<prefix>pdfdiff-turbo-admin:{new_version}'
+    )
+    print(f"  ✓ Updated k8s/base/admin.yaml")
+
+    # Update k8s overlay image tags (local/prod)
+    update_file(
+        root / "k8s" / "overlays" / "local" / "kustomization.yaml",
+        r'newTag:\s*\d+\.\d+\.\d+',
+        f'newTag: {new_version}'
+    )
+    print(f"  ✓ Updated k8s/overlays/local/kustomization.yaml")
+
+    update_file(
+        root / "k8s" / "overlays" / "prod" / "kustomization.yaml",
+        r'newTag:\s*\d+\.\d+\.\d+',
+        f'newTag: {new_version}'
+    )
+    print(f"  ✓ Updated k8s/overlays/prod/kustomization.yaml")
     
     print()
     print("📝 Creating git commit and tag...")

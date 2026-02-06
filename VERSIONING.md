@@ -41,7 +41,19 @@ python update-version.py 1.1.0
 
 The version is managed in these locations:
 
-1. **Root VManagement Scripts
+- Root VERSION file
+- admin/package.json
+- viewer/package.json
+- admin/package-lock.json
+- viewer/package-lock.json
+- admin/src/environments/environment.ts
+- viewer/src/environments/environment.ts
+- docker-compose.yml image tags
+- k8s/base image tags (api/worker/beat/flower/viewer/admin)
+- k8s/overlays/local/kustomization.yaml newTag entries
+- k8s/overlays/prod/kustomization.yaml newTag entries
+
+## Management Scripts
 
 ### bump-version.py (Recommended)
 
@@ -67,25 +79,11 @@ Version update only (no git operations):
 python update-version.py 1.2.0
 ```
 
-**What both scripts updateon.py` script synchronizes the version across all components:
-
-```bash
-python update-version.py 1.2.0
-```
-
 **Features:**
 - Cross-platform (Windows, Linux, macOS)
 - No external dependencies (Python standard library only)
 - Validates semantic version format
 - Updates all version references atomically
-
-**What it updates:**
-- Root VERSION file
-- admin/package.json
-- viewer/package.json
-- admin/src/environments/environment.ts
-- viewer/src/environments/environment.ts
-- docker-compose.yml image tags
 
 ## API Version Endpoint
 
