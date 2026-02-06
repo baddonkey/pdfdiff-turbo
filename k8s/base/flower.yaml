@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: flower
-          image: localhost/pdfdiff-turbo-flower:1.1.6
+          image: localhost/pdfdiff-turbo-flower:1.1.7
           imagePullPolicy: IfNotPresent
           env:
             - name: FLOWER_PORT
