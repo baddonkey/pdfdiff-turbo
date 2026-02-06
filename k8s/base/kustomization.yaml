@@ -9,6 +9,7 @@ resources:
   - postgres.yaml
   - rabbitmq.yaml
   - api.yaml
+  - beat.yaml
   - worker.yaml
   - flower.yaml
   - admin.yaml

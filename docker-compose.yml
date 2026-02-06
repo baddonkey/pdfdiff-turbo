@@ -84,7 +84,7 @@ services:
     build: 
       context: .
       dockerfile: ./api/Dockerfile
-    image: pdfdiff-turbo-beat:1.1.4
+    image: pdfdiff-turbo-beat:1.1.5
     environment:
       PROJECT_NAME: pdfdiff-turbo
       DATABASE_URL: postgresql+asyncpg://pdfdiff:pdfdiff@postgres:5432/pdfdiff

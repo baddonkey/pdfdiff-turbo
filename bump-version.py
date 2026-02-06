@@ -133,7 +133,7 @@ def main():
     
     update_file(
         root / "docker-compose.yml",
-        r'pdfdiff-turbo-(api|worker|flower|viewer|admin):\d+\.\d+\.\d+',
+        r'pdfdiff-turbo-(api|worker|flower|viewer|beat|admin):\d+\.\d+\.\d+',
         f'pdfdiff-turbo-\\1:{new_version}'
     )
     print(f"  ✓ Updated docker-compose.yml")
