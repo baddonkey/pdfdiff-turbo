@@ -28,7 +28,7 @@ spec:
             - app.core.celery_app.celery_app
             - worker
             - --loglevel=INFO
-            - --concurrency=40
+            - --concurrency=2
             - --prefetch-multiplier=1
             - -Q
             - jobs,pages
