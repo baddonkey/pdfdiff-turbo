@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: beat
+  namespace: pdfdiff
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: beat
+  template:
+    metadata:
+      labels:
+        app: beat
+    spec:
+      containers:
+        - name: beat
+          image: localhost/pdfdiff-turbo-beat:1.1.5
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: pdfdiff-config
+            - secretRef:
+                name: pdfdiff-secret
+          command:
+            - celery
+            - -A
+            - app.core.celery_app.celery_app
+            - beat
+            - --loglevel=INFO
