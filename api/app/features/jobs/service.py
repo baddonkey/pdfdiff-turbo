@@ -201,13 +201,9 @@ class JobService:
 
         await self._session.commit()
 
-        for page in pages:
-            if page.status == PageStatus.pending:
-                async_result = celery_app.send_task("compare_page", args=[str(page.id)])
-                page.task_id = async_result.id
-
         job.status = JobStatus.running
         await self._session.commit()
+        celery_app.send_task("enqueue_pages", args=[str(job.id)])
         return JobStartedMessage(id=str(job.id), status=job.status.value)
 
     async def list_files(self, job: Job) -> list[JobFileMessage]:

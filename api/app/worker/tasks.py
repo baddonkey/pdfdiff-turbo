@@ -8,7 +8,7 @@ from typing import Iterable
 import cv2
 import fitz
 import numpy as np
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
@@ -20,6 +20,9 @@ from app.features.jobs.models import Job, JobFile, JobPageResult, JobStatus, Pag
 from app.features.jobs.repository import JobFileRepository, JobPageResultRepository
 
 
+PAGE_BATCH_SIZE = 50
+
+
 @celery_app.task(name="run_job")
 def run_job(job_id: str) -> None:
     asyncio.run(_run_job_async(job_id))
@@ -28,6 +31,11 @@ def run_job(job_id: str) -> None:
 @celery_app.task(name="compare_page")
 def compare_page(page_result_id: str) -> None:
     asyncio.run(_compare_page_async(page_result_id))
+
+
+@celery_app.task(name="enqueue_pages")
+def enqueue_pages(job_id: str) -> None:
+    asyncio.run(_enqueue_pages_async(job_id))
 
 
 @celery_app.task(name="cleanup_retention")
@@ -53,7 +61,6 @@ async def _run_job_async(job_id: str) -> None:
 
         files = await _get_job_files(session, job.id)
         page_results: list[JobPageResult] = []
-        pending_ids: list[str] = []
 
         for job_file in files:
             if job_file.missing_in_set_a or job_file.missing_in_set_b:
@@ -103,24 +110,9 @@ async def _run_job_async(job_id: str) -> None:
         session.add_all(page_results)
         await session.commit()
 
-        for page_result in page_results:
-            if page_result.status == PageStatus.pending:
-                pending_ids.append(str(page_result.id))
-
-        if job.status == JobStatus.cancelled:
-            return
-
-        for page_result_id in pending_ids:
-            async_result = celery_app.send_task("compare_page", args=[page_result_id])
-            result = await session.execute(select(JobPageResult).where(JobPageResult.id == page_result_id))
-            page_row = result.scalar_one_or_none()
-            if page_row:
-                page_row.task_id = async_result.id
-
-        await session.commit()
-
         job.status = JobStatus.running
         await session.commit()
+        await _enqueue_next_batch(session, job.id)
     await engine.dispose()
 
 
@@ -155,6 +147,8 @@ async def _compare_page_async(page_result_id: str) -> None:
         if page_result.missing_in_set_a or page_result.missing_in_set_b:
             page_result.status = PageStatus.missing
             await session.commit()
+            await _enqueue_next_batch(session, job.id)
+            await _try_complete_job(session, job.id)
             return
 
         try:
@@ -169,6 +163,8 @@ async def _compare_page_async(page_result_id: str) -> None:
                 page_result.incompatible_size = True
                 page_result.diff_score = None
                 await session.commit()
+                await _enqueue_next_batch(session, job.id)
+                await _try_complete_job(session, job.id)
                 return
 
             diff_score, overlay_svg = _diff_and_overlay(image_a, image_b)
@@ -183,12 +179,26 @@ async def _compare_page_async(page_result_id: str) -> None:
                 job_file.has_diffs = True
                 job.has_diffs = True
             await session.commit()
+            await _enqueue_next_batch(session, job.id)
             await _try_complete_job(session, job.id)
         except Exception as exc:  # pragma: no cover - runtime safety
             page_result.status = PageStatus.failed
             page_result.error_message = str(exc)
             await session.commit()
+            await _enqueue_next_batch(session, job.id)
             await _try_complete_job(session, job.id)
+    await engine.dispose()
+
+
+async def _enqueue_pages_async(job_id: str) -> None:
+    try:
+        job_uuid = uuid.UUID(job_id)
+    except ValueError:
+        return
+    engine = create_async_engine(settings.database_url, poolclass=NullPool)
+    sessionmaker = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async with sessionmaker() as session:
+        await _enqueue_next_batch(session, job_uuid)
     await engine.dispose()
 
 
@@ -268,6 +278,44 @@ async def _try_complete_job(session: AsyncSession, job_id: str) -> None:
             job.has_diffs = diff_any.scalar_one_or_none() is not None
             job.status = JobStatus.completed
             await session.commit()
+
+
+async def _enqueue_next_batch(session: AsyncSession, job_id: uuid.UUID) -> None:
+    result = await session.execute(select(Job).where(Job.id == job_id))
+    job = result.scalar_one_or_none()
+    if not job or job.status == JobStatus.cancelled:
+        return
+
+    in_flight_result = await session.execute(
+        select(func.count())
+        .select_from(JobPageResult)
+        .join(JobFile, JobPageResult.job_file_id == JobFile.id)
+        .where(JobFile.job_id == job_id)
+        .where(JobPageResult.status.in_([PageStatus.pending, PageStatus.running]))
+        .where(JobPageResult.task_id.is_not(None))
+    )
+    in_flight = int(in_flight_result.scalar_one() or 0)
+    available_slots = max(0, PAGE_BATCH_SIZE - in_flight)
+    if available_slots == 0:
+        return
+
+    pending_result = await session.execute(
+        select(JobPageResult)
+        .join(JobFile, JobPageResult.job_file_id == JobFile.id)
+        .where(JobFile.job_id == job_id)
+        .where(JobPageResult.status == PageStatus.pending)
+        .where(JobPageResult.task_id.is_(None))
+        .order_by(JobPageResult.created_at, JobPageResult.id)
+        .limit(available_slots)
+    )
+    pages = list(pending_result.scalars().all())
+    if not pages:
+        return
+
+    for page in pages:
+        async_result = celery_app.send_task("compare_page", args=[str(page.id)])
+        page.task_id = async_result.id
+    await session.commit()
 
 
 def _resolve_file_path(job_id: str, set_name: str, rel_path: str | None) -> Path:

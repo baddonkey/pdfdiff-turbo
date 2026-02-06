@@ -28,8 +28,10 @@ spec:
             - app.core.celery_app.celery_app
             - worker
             - --loglevel=INFO
-            - --pool=solo
-            - --concurrency=1
+            - --concurrency=40
+            - --prefetch-multiplier=1
+            - -Q
+            - jobs,pages
           volumeMounts:
             - name: pdfdiff-data
               mountPath: /data
