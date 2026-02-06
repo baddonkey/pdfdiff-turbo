@@ -109,9 +109,47 @@ def main():
     # Update docker-compose.yml
     update_file(
         root / "docker-compose.yml",
-        r'pdfdiff-turbo-(api|worker|flower|viewer|admin):\d+\.\d+\.\d+',
+        r'pdfdiff-turbo-(api|worker|beat|flower|viewer|admin):\d+\.\d+\.\d+',
         f'pdfdiff-turbo-\\1:{new_version}',
         "docker-compose.yml image tags"
+    )
+
+    # Update k8s base image tags
+    update_file(
+        root / "k8s" / "base" / "api.yaml",
+        r'(?P<prefix>[^\s"\']*/)?pdfdiff-turbo-api:\d+\.\d+\.\d+',
+        f'\\g<prefix>pdfdiff-turbo-api:{new_version}',
+        "k8s/base/api.yaml image tag"
+    )
+    update_file(
+        root / "k8s" / "base" / "worker.yaml",
+        r'(?P<prefix>[^\s"\']*/)?pdfdiff-turbo-worker:\d+\.\d+\.\d+',
+        f'\\g<prefix>pdfdiff-turbo-worker:{new_version}',
+        "k8s/base/worker.yaml image tag"
+    )
+    update_file(
+        root / "k8s" / "base" / "beat.yaml",
+        r'(?P<prefix>[^\s"\']*/)?pdfdiff-turbo-beat:\d+\.\d+\.\d+',
+        f'\\g<prefix>pdfdiff-turbo-beat:{new_version}',
+        "k8s/base/beat.yaml image tag"
+    )
+    update_file(
+        root / "k8s" / "base" / "flower.yaml",
+        r'(?P<prefix>[^\s"\']*/)?pdfdiff-turbo-flower:\d+\.\d+\.\d+',
+        f'\\g<prefix>pdfdiff-turbo-flower:{new_version}',
+        "k8s/base/flower.yaml image tag"
+    )
+    update_file(
+        root / "k8s" / "base" / "viewer.yaml",
+        r'(?P<prefix>[^\s"\']*/)?pdfdiff-turbo-viewer:\d+\.\d+\.\d+',
+        f'\\g<prefix>pdfdiff-turbo-viewer:{new_version}',
+        "k8s/base/viewer.yaml image tag"
+    )
+    update_file(
+        root / "k8s" / "base" / "admin.yaml",
+        r'(?P<prefix>[^\s"\']*/)?pdfdiff-turbo-admin:\d+\.\d+\.\d+',
+        f'\\g<prefix>pdfdiff-turbo-admin:{new_version}',
+        "k8s/base/admin.yaml image tag"
     )
 
     # Update k8s base image tags
@@ -152,6 +190,14 @@ def main():
         r'newTag:\s*\d+\.\d+\.\d+',
         f'newTag: {new_version}',
         "k8s/overlays/local/kustomization.yaml newTag entries"
+    )
+
+    # Update k8s prod overlay tags
+    update_file(
+        root / "k8s" / "overlays" / "prod" / "kustomization.yaml",
+        r'newTag:\s*\d+\.\d+\.\d+',
+        f'newTag: {new_version}',
+        "k8s/overlays/prod/kustomization.yaml newTag entries"
     )
     
     print()
