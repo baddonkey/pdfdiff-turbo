@@ -28,3 +28,47 @@ class AdminUserUpdateCommand(BaseModel):
     max_upload_mb: int | None = None
     max_pages_per_job: int | None = None
     max_jobs_per_user_per_day: int | None = None
+
+
+class AdminStorageBucketMessage(BaseModel):
+    name: str
+    path: str
+    bytes: int
+    files: int
+    pdf_files: int
+    image_files: int
+
+
+class AdminStorageStatsMessage(BaseModel):
+    data_dir: str
+    total_bytes: int | None
+    used_bytes: int | None
+    free_bytes: int | None
+    buckets: list[AdminStorageBucketMessage]
+
+
+class AdminCountsMessage(BaseModel):
+    jobs_total: int
+    jobs_by_status: dict[str, int]
+    job_files_total: int
+    pages_total: int
+    pdf_files_total: int
+    overlay_images_total: int
+
+
+class AdminSystemStatsMessage(BaseModel):
+    cpu_count: int | None
+    load_avg_1m: float | None
+    load_avg_5m: float | None
+    load_avg_15m: float | None
+    memory_total_bytes: int | None
+    memory_used_bytes: int | None
+    memory_available_bytes: int | None
+    memory_used_percent: float | None
+
+
+class AdminStatsMessage(BaseModel):
+    generated_at: datetime
+    storage: AdminStorageStatsMessage
+    counts: AdminCountsMessage
+    system: AdminSystemStatsMessage

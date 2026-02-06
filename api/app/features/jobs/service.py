@@ -366,7 +366,16 @@ class JobService:
                 page.status = PageStatus.failed
                 page.error_message = "cancelled"
         await self._session.commit()
-        return JobStatusMessage(id=str(job.id), status=job.status.value, created_at=job.created_at)
+        return JobStatusMessage(
+            id=str(job.id),
+            display_id=self._display_id(job),
+            status=job.status.value,
+            set_a_label=job.set_a_label,
+            set_b_label=job.set_b_label,
+            has_diffs=job.has_diffs,
+            files_available=self._files_available(str(job.id)),
+            created_at=job.created_at,
+        )
 
     async def get_progress(self, job: Job) -> dict:
         counts = dict(await self._page_repo.count_status_for_job(job.id))
