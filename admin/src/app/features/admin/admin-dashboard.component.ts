@@ -1,7 +1,7 @@
 import { AfterViewInit, Component, OnDestroy, TemplateRef, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { AdminService, AdminJob, AdminUser, AppConfig } from '../../core/admin.service';
+import { AdminService, AdminJob, AdminUser, AppConfig, AdminStats } from '../../core/admin.service';
 import { TopbarActionsService } from '../../core/topbar-actions.service';
 
 @Component({
@@ -32,6 +32,13 @@ import { TopbarActionsService } from '../../core/topbar-actions.service';
           [style.border]="activeTab === 'config' ? '1px solid #cbd5f5' : '1px solid var(--theme-primary)'"
           (click)="setTab('config')"
         >Configuration</button>
+        <button
+          class="btn secondary"
+          [style.background]="activeTab === 'stats' ? '#f8fafc' : 'var(--theme-secondary)'"
+          [style.color]="activeTab === 'stats' ? '#0f172a' : 'var(--theme-primary)'"
+          [style.border]="activeTab === 'stats' ? '1px solid #cbd5f5' : '1px solid var(--theme-primary)'"
+          (click)="setTab('stats')"
+        >Statistics</button>
       </div>
     </ng-template>
     <div class="grid" style="grid-template-columns: 1fr; gap: 16px;">
@@ -141,16 +148,128 @@ import { TopbarActionsService } from '../../core/topbar-actions.service';
           <div *ngIf="configError" style="color:#b91c1c;">{{ configError }}</div>
         </div>
       </div>
+
+      <div class="card" *ngIf="activeTab === 'stats'">
+        <div style="display:flex; justify-content: space-between; align-items:center; gap: 8px;">
+          <h2 style="margin: 0;">Statistics</h2>
+          <button class="btn secondary" (click)="loadStats()">Refresh</button>
+        </div>
+        <div *ngIf="statsLoading" style="margin-top: 12px; color:#64748b;">Loading statistics...</div>
+        <div *ngIf="statsError" style="margin-top: 12px; color:#b91c1c;">{{ statsError }}</div>
+
+        <div *ngIf="stats" style="margin-top: 12px; display: grid; gap: 16px;">
+          <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px;">
+            <div class="card" style="margin: 0;">
+              <div style="font-size: 12px; color:#64748b;">Total jobs</div>
+              <div style="font-size: 20px; font-weight: 600;">{{ stats.counts.jobs_total }}</div>
+            </div>
+            <div class="card" style="margin: 0;">
+              <div style="font-size: 12px; color:#64748b;">Job files</div>
+              <div style="font-size: 20px; font-weight: 600;">{{ stats.counts.job_files_total }}</div>
+            </div>
+            <div class="card" style="margin: 0;">
+              <div style="font-size: 12px; color:#64748b;">Pages</div>
+              <div style="font-size: 20px; font-weight: 600;">{{ stats.counts.pages_total }}</div>
+            </div>
+            <div class="card" style="margin: 0;">
+              <div style="font-size: 12px; color:#64748b;">PDF files</div>
+              <div style="font-size: 20px; font-weight: 600;">{{ stats.counts.pdf_files_total }}</div>
+            </div>
+            <div class="card" style="margin: 0;">
+              <div style="font-size: 12px; color:#64748b;">Overlay images</div>
+              <div style="font-size: 20px; font-weight: 600;">{{ stats.counts.overlay_images_total }}</div>
+            </div>
+          </div>
+
+          <div class="card" style="margin: 0;">
+            <h3 style="margin-top: 0;">Jobs by status</h3>
+            <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px;">
+              <div *ngFor="let item of jobStatusEntries(stats.counts.jobs_by_status)" class="card" style="margin: 0;">
+                <div style="font-size: 12px; color:#64748b;">{{ item.key }}</div>
+                <div style="font-size: 18px; font-weight: 600;">{{ item.value }}</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card" style="margin: 0;">
+            <h3 style="margin-top: 0;">Storage</h3>
+            <div style="display:grid; gap: 6px;">
+              <div><strong>Data directory:</strong> {{ stats.storage.data_dir }}</div>
+              <div><strong>Total:</strong> {{ formatBytes(stats.storage.total_bytes) }}</div>
+              <div><strong>Used:</strong> {{ formatBytes(stats.storage.used_bytes) }}</div>
+              <div><strong>Free:</strong> {{ formatBytes(stats.storage.free_bytes) }}</div>
+            </div>
+            <table class="table" style="margin-top: 12px;">
+              <thead>
+                <tr>
+                  <th>Bucket</th>
+                  <th>Path</th>
+                  <th>Size</th>
+                  <th>Files</th>
+                  <th>PDFs</th>
+                  <th>Images</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let bucket of stats.storage.buckets">
+                  <td>{{ bucket.name }}</td>
+                  <td>{{ bucket.path }}</td>
+                  <td>{{ formatBytes(bucket.bytes) }}</td>
+                  <td>{{ bucket.files }}</td>
+                  <td>{{ bucket.pdf_files }}</td>
+                  <td>{{ bucket.image_files }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="card" style="margin: 0;">
+            <h3 style="margin-top: 0;">System</h3>
+            <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px;">
+              <div class="card" style="margin: 0;">
+                <div style="font-size: 12px; color:#64748b;">CPU count</div>
+                <div style="font-size: 18px; font-weight: 600;">{{ formatNullable(stats.system.cpu_count) }}</div>
+              </div>
+              <div class="card" style="margin: 0;">
+                <div style="font-size: 12px; color:#64748b;">Load avg (1/5/15m)</div>
+                <div style="font-size: 18px; font-weight: 600;">
+                  {{ formatLoad(stats.system.load_avg_1m, stats.system.load_avg_5m, stats.system.load_avg_15m) }}
+                </div>
+              </div>
+              <div class="card" style="margin: 0;">
+                <div style="font-size: 12px; color:#64748b;">Memory used</div>
+                <div style="font-size: 18px; font-weight: 600;">
+                  {{ formatBytes(stats.system.memory_used_bytes) }}
+                  <span *ngIf="stats.system.memory_used_percent !== null" style="font-size: 12px; color:#64748b;">
+                    ({{ stats.system.memory_used_percent | number: '1.0-1' }}%)
+                  </span>
+                </div>
+              </div>
+              <div class="card" style="margin: 0;">
+                <div style="font-size: 12px; color:#64748b;">Memory available</div>
+                <div style="font-size: 18px; font-weight: 600;">{{ formatBytes(stats.system.memory_available_bytes) }}</div>
+              </div>
+              <div class="card" style="margin: 0;">
+                <div style="font-size: 12px; color:#64748b;">Memory total</div>
+                <div style="font-size: 18px; font-weight: 600;">{{ formatBytes(stats.system.memory_total_bytes) }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   `
 })
 export class AdminDashboardComponent implements AfterViewInit, OnDestroy {
   jobs: AdminJob[] = [];
   users: AdminUser[] = [];
-  activeTab: 'jobs' | 'users' | 'config' = 'jobs';
+  activeTab: 'jobs' | 'users' | 'config' | 'stats' = 'jobs';
   config: AppConfig | null = null;
   configMessage = '';
   configError = '';
+  stats: AdminStats | null = null;
+  statsLoading = false;
+  statsError = '';
 
   @ViewChild('topbarActions') topbarActionsTpl?: TemplateRef<any>;
 
@@ -158,6 +277,7 @@ export class AdminDashboardComponent implements AfterViewInit, OnDestroy {
     this.loadJobs();
     this.loadUsers();
     this.loadConfig();
+    this.loadStats();
   }
 
   ngAfterViewInit() {
@@ -168,10 +288,13 @@ export class AdminDashboardComponent implements AfterViewInit, OnDestroy {
     this.topbar.setActions(null);
   }
 
-  setTab(tab: 'jobs' | 'users' | 'config') {
+  setTab(tab: 'jobs' | 'users' | 'config' | 'stats') {
     this.activeTab = tab;
     if (tab === 'config' && !this.config) {
       this.loadConfig();
+    }
+    if (tab === 'stats' && !this.stats) {
+      this.loadStats();
     }
   }
 
@@ -235,6 +358,50 @@ export class AdminDashboardComponent implements AfterViewInit, OnDestroy {
         this.configError = err?.error?.detail ?? 'Failed to save configuration.';
       }
     });
+  }
+
+  loadStats() {
+    this.statsLoading = true;
+    this.statsError = '';
+    this.admin.getStats().subscribe({
+      next: stats => {
+        this.stats = stats;
+      },
+      error: err => {
+        this.statsError = err?.error?.detail ?? 'Failed to load statistics.';
+      },
+      complete: () => {
+        this.statsLoading = false;
+      }
+    });
+  }
+
+  formatBytes(value: number | null) {
+    if (value === null || value === undefined) {
+      return 'n/a';
+    }
+    if (value === 0) {
+      return '0 B';
+    }
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const index = Math.min(units.length - 1, Math.floor(Math.log(value) / Math.log(1024)));
+    const scaled = value / Math.pow(1024, index);
+    return `${scaled.toFixed(scaled < 10 ? 2 : 1)} ${units[index]}`;
+  }
+
+  formatNullable(value: number | null) {
+    return value === null || value === undefined ? 'n/a' : value;
+  }
+
+  formatLoad(avg1: number | null, avg5: number | null, avg15: number | null) {
+    if (avg1 === null || avg5 === null || avg15 === null) {
+      return 'n/a';
+    }
+    return `${avg1.toFixed(2)} / ${avg5.toFixed(2)} / ${avg15.toFixed(2)}`;
+  }
+
+  jobStatusEntries(statuses: Record<string, number>) {
+    return Object.entries(statuses).map(([key, value]) => ({ key, value }));
   }
 
   badgeClass(status: string) {

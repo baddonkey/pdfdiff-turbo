@@ -1,11 +1,28 @@
+import os
+import shutil
+from datetime import datetime
+from pathlib import Path
+
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import func, select, or_
 
 from app.features.admin.repository import AdminRepository
-from app.features.admin.schemas import AdminJobMessage, AdminUserMessage, AdminUserUpdateCommand
+from app.features.admin.schemas import (
+    AdminJobMessage,
+    AdminUserMessage,
+    AdminUserUpdateCommand,
+    AdminStatsMessage,
+    AdminStorageStatsMessage,
+    AdminStorageBucketMessage,
+    AdminCountsMessage,
+    AdminSystemStatsMessage,
+)
 from app.features.auth.models import UserRole
 from app.core.celery_app import celery_app
 from app.features.jobs.service import JobService
+from app.features.jobs.models import Job, JobFile, JobPageResult
+from app.core.config import settings
 
 
 class AdminService:
@@ -92,3 +109,276 @@ class AdminService:
     async def trigger_cleanup(self) -> dict:
         celery_app.send_task("cleanup_retention")
         return {"status": "ok"}
+
+    async def get_stats(self) -> AdminStatsMessage:
+        counts = await self._get_counts()
+        storage = self._get_storage_stats()
+        system = self._get_system_stats()
+        return AdminStatsMessage(
+            generated_at=datetime.utcnow(),
+            storage=storage,
+            counts=counts,
+            system=system,
+        )
+
+    async def _get_counts(self) -> AdminCountsMessage:
+        jobs_total_result = await self._session.execute(select(func.count()).select_from(Job))
+        jobs_total = int(jobs_total_result.scalar_one() or 0)
+
+        jobs_by_status_result = await self._session.execute(
+            select(Job.status, func.count()).group_by(Job.status)
+        )
+        jobs_by_status = {str(status.value): int(count) for status, count in jobs_by_status_result.all()}
+
+        job_files_result = await self._session.execute(select(func.count()).select_from(JobFile))
+        job_files_total = int(job_files_result.scalar_one() or 0)
+
+        pages_result = await self._session.execute(select(func.count()).select_from(JobPageResult))
+        pages_total = int(pages_result.scalar_one() or 0)
+
+        pdf_files_result = await self._session.execute(
+            select(func.count()).select_from(JobFile).where(
+                or_(
+                    JobFile.set_a_path.ilike("%.pdf"),
+                    JobFile.set_b_path.ilike("%.pdf"),
+                )
+            )
+        )
+        pdf_files_total = int(pdf_files_result.scalar_one() or 0)
+
+        overlays_result = await self._session.execute(
+            select(func.count()).select_from(JobPageResult).where(JobPageResult.overlay_svg_path.is_not(None))
+        )
+        overlay_images_total = int(overlays_result.scalar_one() or 0)
+
+        return AdminCountsMessage(
+            jobs_total=jobs_total,
+            jobs_by_status=jobs_by_status,
+            job_files_total=job_files_total,
+            pages_total=pages_total,
+            pdf_files_total=pdf_files_total,
+            overlay_images_total=overlay_images_total,
+        )
+
+    def _get_storage_stats(self) -> AdminStorageStatsMessage:
+        data_dir = Path(settings.data_dir)
+        total_bytes = None
+        used_bytes = None
+        free_bytes = None
+        if data_dir.exists():
+            try:
+                usage = shutil.disk_usage(data_dir)
+                total_bytes = int(usage.total)
+                used_bytes = int(usage.used)
+                free_bytes = int(usage.free)
+            except OSError:
+                pass
+
+        buckets: list[AdminStorageBucketMessage] = []
+
+        jobs_dir = data_dir / "jobs"
+        jobs_totals, jobs_buckets = self._scan_jobs_storage(jobs_dir)
+        buckets.extend(jobs_buckets)
+        if jobs_dir.exists():
+            buckets.insert(
+                0,
+                AdminStorageBucketMessage(
+                    name="Jobs Total",
+                    path=str(jobs_dir),
+                    bytes=jobs_totals[0],
+                    files=jobs_totals[1],
+                    pdf_files=jobs_totals[2],
+                    image_files=jobs_totals[3],
+                ),
+            )
+
+        samples_dir = data_dir / "samples"
+        samples_stats = self._scan_path(samples_dir)
+        if samples_dir.exists():
+            buckets.append(
+                AdminStorageBucketMessage(
+                    name="Samples",
+                    path=str(samples_dir),
+                    bytes=samples_stats[0],
+                    files=samples_stats[1],
+                    pdf_files=samples_stats[2],
+                    image_files=samples_stats[3],
+                )
+            )
+
+        other_stats = self._scan_other_storage(data_dir, exclude={"jobs", "samples"})
+        buckets.append(
+            AdminStorageBucketMessage(
+                name="Other Data",
+                path=str(data_dir),
+                bytes=other_stats[0],
+                files=other_stats[1],
+                pdf_files=other_stats[2],
+                image_files=other_stats[3],
+            )
+        )
+
+        return AdminStorageStatsMessage(
+            data_dir=str(data_dir),
+            total_bytes=total_bytes,
+            used_bytes=used_bytes,
+            free_bytes=free_bytes,
+            buckets=buckets,
+        )
+
+    def _scan_jobs_storage(
+        self, jobs_dir: Path
+    ) -> tuple[tuple[int, int, int, int], list[AdminStorageBucketMessage]]:
+        totals = [0, 0, 0, 0]
+        categories = {
+            "Uploads Set A": [0, 0, 0, 0],
+            "Uploads Set B": [0, 0, 0, 0],
+            "Artifacts": [0, 0, 0, 0],
+            "Temp Reports": [0, 0, 0, 0],
+            "Other Job Files": [0, 0, 0, 0],
+        }
+
+        if jobs_dir.exists():
+            for root, _, files in os.walk(jobs_dir):
+                for name in files:
+                    file_path = Path(root) / name
+                    try:
+                        stat = file_path.stat()
+                    except OSError:
+                        continue
+                    size = int(stat.st_size)
+                    ext = file_path.suffix.lower()
+                    rel_parts = file_path.relative_to(jobs_dir).parts
+                    bucket = "Other Job Files"
+                    if len(rel_parts) > 1:
+                        category = rel_parts[1]
+                        if category == "setA":
+                            bucket = "Uploads Set A"
+                        elif category == "setB":
+                            bucket = "Uploads Set B"
+                        elif category == "artifacts":
+                            bucket = "Artifacts"
+                        elif category == "temp_report":
+                            bucket = "Temp Reports"
+
+                    self._accumulate(categories[bucket], size, ext)
+                    self._accumulate(totals, size, ext)
+
+        buckets = []
+        for name, stats in categories.items():
+            path_hint = ""
+            if name == "Uploads Set A":
+                path_hint = str(jobs_dir / "*" / "setA")
+            elif name == "Uploads Set B":
+                path_hint = str(jobs_dir / "*" / "setB")
+            elif name == "Artifacts":
+                path_hint = str(jobs_dir / "*" / "artifacts")
+            elif name == "Temp Reports":
+                path_hint = str(jobs_dir / "*" / "temp_report")
+            else:
+                path_hint = str(jobs_dir)
+
+            buckets.append(
+                AdminStorageBucketMessage(
+                    name=name,
+                    path=path_hint,
+                    bytes=stats[0],
+                    files=stats[1],
+                    pdf_files=stats[2],
+                    image_files=stats[3],
+                )
+            )
+
+        return (totals[0], totals[1], totals[2], totals[3]), buckets
+
+    def _scan_path(self, path: Path) -> tuple[int, int, int, int]:
+        totals = [0, 0, 0, 0]
+        if not path.exists():
+            return (0, 0, 0, 0)
+        for root, _, files in os.walk(path):
+            for name in files:
+                file_path = Path(root) / name
+                try:
+                    stat = file_path.stat()
+                except OSError:
+                    continue
+                size = int(stat.st_size)
+                ext = file_path.suffix.lower()
+                self._accumulate(totals, size, ext)
+        return (totals[0], totals[1], totals[2], totals[3])
+
+    def _scan_other_storage(self, data_dir: Path, exclude: set[str]) -> tuple[int, int, int, int]:
+        totals = [0, 0, 0, 0]
+        if not data_dir.exists():
+            return (0, 0, 0, 0)
+        for child in data_dir.iterdir():
+            if child.name in exclude:
+                continue
+            if child.is_file():
+                try:
+                    stat = child.stat()
+                except OSError:
+                    continue
+                size = int(stat.st_size)
+                ext = child.suffix.lower()
+                self._accumulate(totals, size, ext)
+            elif child.is_dir():
+                child_totals = self._scan_path(child)
+                totals[0] += child_totals[0]
+                totals[1] += child_totals[1]
+                totals[2] += child_totals[2]
+                totals[3] += child_totals[3]
+        return (totals[0], totals[1], totals[2], totals[3])
+
+    def _accumulate(self, stats: list[int], size: int, ext: str) -> None:
+        stats[0] += size
+        stats[1] += 1
+        if ext == ".pdf":
+            stats[2] += 1
+        if ext in {".png", ".jpg", ".jpeg", ".svg", ".webp"}:
+            stats[3] += 1
+
+    def _get_system_stats(self) -> AdminSystemStatsMessage:
+        cpu_count = os.cpu_count()
+        load_avg_1m = None
+        load_avg_5m = None
+        load_avg_15m = None
+        try:
+            load_avg_1m, load_avg_5m, load_avg_15m = os.getloadavg()
+        except (AttributeError, OSError):
+            pass
+
+        mem_total = None
+        mem_available = None
+        mem_used = None
+        mem_used_percent = None
+        meminfo_path = Path("/proc/meminfo")
+        if meminfo_path.exists():
+            meminfo = {}
+            for line in meminfo_path.read_text(encoding="utf-8").splitlines():
+                parts = line.split(":", 1)
+                if len(parts) != 2:
+                    continue
+                key = parts[0].strip()
+                value = parts[1].strip().split(" ")[0]
+                try:
+                    meminfo[key] = int(value) * 1024
+                except ValueError:
+                    continue
+            mem_total = meminfo.get("MemTotal")
+            mem_available = meminfo.get("MemAvailable")
+            if mem_total is not None and mem_available is not None:
+                mem_used = mem_total - mem_available
+                if mem_total > 0:
+                    mem_used_percent = (mem_used / mem_total) * 100.0
+
+        return AdminSystemStatsMessage(
+            cpu_count=cpu_count,
+            load_avg_1m=load_avg_1m,
+            load_avg_5m=load_avg_5m,
+            load_avg_15m=load_avg_15m,
+            memory_total_bytes=mem_total,
+            memory_used_bytes=mem_used,
+            memory_available_bytes=mem_available,
+            memory_used_percent=mem_used_percent,
+        )

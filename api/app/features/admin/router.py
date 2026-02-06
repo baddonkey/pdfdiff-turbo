@@ -1,7 +1,12 @@
 from fastapi import APIRouter, Depends
 
 from app.features.admin.deps import get_admin_service
-from app.features.admin.schemas import AdminJobMessage, AdminUserMessage, AdminUserUpdateCommand
+from app.features.admin.schemas import (
+    AdminJobMessage,
+    AdminUserMessage,
+    AdminUserUpdateCommand,
+    AdminStatsMessage,
+)
 from app.features.admin.service import AdminService
 from app.features.auth.deps import require_admin
 from app.features.auth.models import User
@@ -53,3 +58,8 @@ async def update_config(
 @router.post("/cleanup")
 async def trigger_cleanup(service: AdminService = Depends(get_admin_service)) -> dict:
     return await service.trigger_cleanup()
+
+
+@router.get("/stats", response_model=AdminStatsMessage)
+async def get_stats(service: AdminService = Depends(get_admin_service)) -> AdminStatsMessage:
+    return await service.get_stats()
