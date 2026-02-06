@@ -33,6 +33,7 @@ def main():
     run(["kubectl", "-n", "pdfdiff", "rollout", "status", "deployment/rabbitmq", "--timeout=180s"])
     run(["kubectl", "-n", "pdfdiff", "rollout", "status", "deployment/api", "--timeout=180s"])
     run(["kubectl", "-n", "pdfdiff", "rollout", "status", "deployment/worker", "--timeout=180s"])
+    run(["kubectl", "-n", "pdfdiff", "rollout", "status", "deployment/beat", "--timeout=180s"])
     run(["kubectl", "-n", "pdfdiff", "rollout", "status", "deployment/admin", "--timeout=180s"])
     run(["kubectl", "-n", "pdfdiff", "rollout", "status", "deployment/viewer", "--timeout=180s"])
 

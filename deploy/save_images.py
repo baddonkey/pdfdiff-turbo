@@ -32,6 +32,7 @@ def main():
 
     run([build_tool, "save", "-o", str(out_dir / f"pdfdiff-turbo-api_{version}.tar"), f"pdfdiff-turbo-api:{version}"])
     run([build_tool, "save", "-o", str(out_dir / f"pdfdiff-turbo-worker_{version}.tar"), f"pdfdiff-turbo-worker:{version}"])
+    run([build_tool, "save", "-o", str(out_dir / f"pdfdiff-turbo-beat_{version}.tar"), f"pdfdiff-turbo-beat:{version}"])
     run([build_tool, "save", "-o", str(out_dir / f"pdfdiff-turbo-flower_{version}.tar"), f"pdfdiff-turbo-flower:{version}"])
     run([build_tool, "save", "-o", str(out_dir / f"pdfdiff-turbo-admin_{version}.tar"), f"pdfdiff-turbo-admin:{version}"])
     run([build_tool, "save", "-o", str(out_dir / f"pdfdiff-turbo-viewer_{version}.tar"), f"pdfdiff-turbo-viewer:{version}"])
