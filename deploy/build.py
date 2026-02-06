@@ -31,6 +31,7 @@ def main():
 
     run([build_tool, "build", "-f", "api/Dockerfile", "-t", f"pdfdiff-turbo-api:{version}", "."])
     run([build_tool, "build", "-f", "api/Dockerfile", "-t", f"pdfdiff-turbo-worker:{version}", "."])
+    run([build_tool, "build", "-f", "api/Dockerfile", "-t", f"pdfdiff-turbo-beat:{version}", "."])
     run([build_tool, "build", "-f", "api/Dockerfile", "-t", f"pdfdiff-turbo-flower:{version}", "."])
     run([build_tool, "build", "-f", "admin/Dockerfile", "-t", f"pdfdiff-turbo-admin:{version}", "admin"])
     run([build_tool, "build", "-f", "viewer/Dockerfile", "-t", f"pdfdiff-turbo-viewer:{version}", "viewer"])
