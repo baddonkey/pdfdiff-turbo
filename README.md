@@ -94,3 +94,9 @@ API/Worker:
 ```
 KUBECONFIG=/etc/rancher/k3s/k3s.yaml kubectl -n pdfdiff scale deployment flower --replicas=0
 ```
+
+## Data Storage on the prod server
+
+```
+/var/lib/rancher/k3s/storage/
+````
