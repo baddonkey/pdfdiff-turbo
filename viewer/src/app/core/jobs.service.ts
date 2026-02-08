@@ -8,6 +8,7 @@ export interface JobFile {
   missing_in_set_a: boolean;
   missing_in_set_b: boolean;
   has_diffs?: boolean;
+  text_status?: string | null;
   created_at?: string;
   status?: string;
 }
@@ -244,6 +245,12 @@ export class JobsService {
 
   getFileContent(jobId: string, fileId: string, setName: 'A' | 'B') {
     return `${this.baseUrl}/jobs/${jobId}/files/${fileId}/content?set=${setName}`;
+  }
+
+  getFileText(jobId: string, fileId: string, setName: 'A' | 'B') {
+    return this.http.get(`${this.baseUrl}/jobs/${jobId}/files/${fileId}/text?set=${setName}`, {
+      responseType: 'text'
+    });
   }
 
   downloadReport(jobId: string) {

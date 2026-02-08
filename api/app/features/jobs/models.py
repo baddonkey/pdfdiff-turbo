@@ -26,6 +26,14 @@ class PageStatus(str, enum.Enum):
     missing = "missing"
 
 
+class TextStatus(str, enum.Enum):
+    pending = "pending"
+    running = "running"
+    done = "done"
+    missing = "missing"
+    failed = "failed"
+
+
 class Job(Base):
     __tablename__ = "jobs"
 
@@ -49,6 +57,10 @@ class JobFile(Base):
     missing_in_set_a: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     missing_in_set_b: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     has_diffs: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    text_status: Mapped[TextStatus] = mapped_column(Enum(TextStatus), default=TextStatus.pending, nullable=False)
+    text_set_a_path: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+    text_set_b_path: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+    text_error: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
 
 

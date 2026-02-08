@@ -217,6 +217,7 @@ class JobService:
                 missing_in_set_a=item.missing_in_set_a,
                 missing_in_set_b=item.missing_in_set_b,
                 has_diffs=item.has_diffs,
+                text_status=item.text_status.value if item.text_status else None,
                 status="missing" if (item.missing_in_set_a or item.missing_in_set_b) else "ready",
                 created_at=item.created_at,
             )

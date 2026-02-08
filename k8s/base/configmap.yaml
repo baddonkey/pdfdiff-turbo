@@ -10,3 +10,4 @@ data:
   CELERY_RESULT_BACKEND: rpc://
   DATA_DIR: /data
   RENDER_DPI: "150"
+  TIKA_URL: http://tika:9998/tika

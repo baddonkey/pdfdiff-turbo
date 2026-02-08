@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     refresh_token_exp_days: int = 3650
     render_dpi: int = 150
     diff_threshold: int = 5
+    tika_url: str = "http://tika:9998/tika"
 
 
 settings = Settings()

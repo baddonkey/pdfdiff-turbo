@@ -176,6 +176,7 @@ async def job_files_ws(
                             "missing_in_set_a": file.missing_in_set_a,
                             "missing_in_set_b": file.missing_in_set_b,
                             "has_diffs": diff_flags.get(str(file.id), file.has_diffs),
+                            "text_status": file.text_status.value if file.text_status else None,
                             "status": _status_from_counts(counts, file.missing_in_set_a, file.missing_in_set_b),
                             "created_at": file.created_at.isoformat(),
                         }
@@ -499,6 +500,27 @@ async def get_file_content(
     if not target.exists():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
     return FileResponse(path=str(target), media_type="application/pdf")
+
+
+@router.get("/{job_id}/files/{file_id}/text")
+async def get_file_text(
+    job_id: str,
+    file_id: str,
+    set_name: str = Query("A", alias="set", pattern="^(A|B)$"),
+    repo=Depends(get_job_repository),
+    file_repo=Depends(get_job_file_repository),
+    user: User = Depends(get_current_user),
+) -> FileResponse:
+    job = await repo.get_by_id_and_user(job_id, str(user.id))
+    if not job:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
+    if not await file_repo.get_by_id_and_job(file_id, job.id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
+    base = Path(settings.data_dir) / "jobs" / job_id / "text" / file_id
+    target = base / ("setA.txt" if set_name == "A" else "setB.txt")
+    if not target.exists():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Text not found")
+    return FileResponse(path=str(target), media_type="text/plain; charset=utf-8")
 
 
 @router.get("/{job_id}/report")

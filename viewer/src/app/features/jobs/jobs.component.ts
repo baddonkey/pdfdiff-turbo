@@ -80,7 +80,13 @@ import { AppConfigService } from '../../core/app-config.service';
                     (click)="openJobDetails(job.id)"
                     [disabled]="job.files_available === false"
                     [attr.title]="job.files_available === false ? retentionMessage : null"
-                  >Compare</button>
+                  >Visual Compare</button>
+                  <button
+                    class="btn secondary"
+                    (click)="openJobTextDetails(job.id)"
+                    [disabled]="job.files_available === false"
+                    [attr.title]="job.files_available === false ? retentionMessage : null"
+                  >Text Compare</button>
                   <button 
                     class="btn secondary" 
                     (click)="downloadReport(job.id)"
@@ -150,7 +156,13 @@ import { AppConfigService } from '../../core/app-config.service';
                 (click)="$event.stopPropagation(); openJobDetails(job.id)"
                 [disabled]="job.files_available === false"
                 [attr.title]="job.files_available === false ? retentionMessage : null"
-              >Compare</button>
+              >Visual Compare</button>
+              <button
+                class="btn secondary"
+                (click)="$event.stopPropagation(); openJobTextDetails(job.id)"
+                [disabled]="job.files_available === false"
+                [attr.title]="job.files_available === false ? retentionMessage : null"
+              >Text Compare</button>
               <button
                 class="btn secondary"
                 (click)="$event.stopPropagation(); downloadReport(job.id)"
@@ -616,6 +628,25 @@ export class JobsComponent implements OnInit, AfterViewInit, OnDestroy {
       next: files => {
         if (files.length > 0) {
           this.router.navigate(['/jobs', jobId, 'files', files[0].id]);
+        } else {
+          this.setTab('jobs');
+          this.selectJob(jobId);
+          this.message = 'No files available for this job yet.';
+        }
+      },
+      error: () => {
+        this.setTab('jobs');
+        this.selectJob(jobId);
+        this.error = 'Failed to load job files.';
+      }
+    });
+  }
+
+  openJobTextDetails(jobId: string) {
+    this.jobsService.listFiles(jobId).subscribe({
+      next: files => {
+        if (files.length > 0) {
+          this.router.navigate(['/jobs', jobId, 'files', files[0].id, 'text']);
         } else {
           this.setTab('jobs');
           this.selectJob(jobId);

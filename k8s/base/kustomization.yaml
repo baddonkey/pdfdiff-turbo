@@ -8,6 +8,7 @@ resources:
   - persistent-volumes.yaml
   - postgres.yaml
   - rabbitmq.yaml
+  - tika.yaml
   - api.yaml
   - beat.yaml
   - worker.yaml

@@ -7,6 +7,7 @@ from typing import Iterable
 
 import cv2
 import fitz
+import httpx
 import numpy as np
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -16,7 +17,7 @@ from app.core.celery_app import celery_app
 from app.core.config import settings
 import app.models  # noqa: F401
 from app.features.config.models import AppConfig
-from app.features.jobs.models import Job, JobFile, JobPageResult, JobStatus, PageStatus
+from app.features.jobs.models import Job, JobFile, JobPageResult, JobStatus, PageStatus, TextStatus
 from app.features.jobs.repository import JobFileRepository, JobPageResultRepository
 
 
@@ -36,6 +37,11 @@ def compare_page(page_result_id: str) -> None:
 @celery_app.task(name="enqueue_pages")
 def enqueue_pages(job_id: str) -> None:
     asyncio.run(_enqueue_pages_async(job_id))
+
+
+@celery_app.task(name="extract_text")
+def extract_text(job_file_id: str) -> None:
+    asyncio.run(_extract_text_async(job_file_id))
 
 
 @celery_app.task(name="cleanup_retention")
@@ -112,7 +118,74 @@ async def _run_job_async(job_id: str) -> None:
 
         job.status = JobStatus.running
         await session.commit()
+        await _enqueue_text_tasks(session, job.id)
         await _enqueue_next_batch(session, job.id)
+    await engine.dispose()
+
+
+async def _extract_text_async(job_file_id: str) -> None:
+    try:
+        job_file_uuid = uuid.UUID(job_file_id)
+    except ValueError:
+        return
+    engine = create_async_engine(settings.database_url, poolclass=NullPool)
+    sessionmaker = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async with sessionmaker() as session:
+        result = await session.execute(
+            select(JobFile, Job)
+            .join(Job, JobFile.job_id == Job.id)
+            .where(JobFile.id == job_file_uuid)
+        )
+        row = result.first()
+        if not row:
+            await engine.dispose()
+            return
+
+        job_file, job = row
+        if job.status == JobStatus.cancelled:
+            await engine.dispose()
+            return
+
+        job_file.text_status = TextStatus.running
+        job_file.text_error = None
+        await session.commit()
+
+        text_dir = Path(settings.data_dir) / "jobs" / str(job.id) / "text" / str(job_file.id)
+        text_dir.mkdir(parents=True, exist_ok=True)
+
+        success_a = False
+        success_b = False
+
+        try:
+            if job_file.set_a_path:
+                path_a = _resolve_file_path(job.id, "setA", job_file.set_a_path)
+                if path_a.exists():
+                    text_a = await _extract_text_from_pdf(path_a)
+                    text_path_a = text_dir / "setA.txt"
+                    text_path_a.write_text(text_a, encoding="utf-8")
+                    job_file.text_set_a_path = str(text_path_a)
+                    success_a = True
+
+            if job_file.set_b_path:
+                path_b = _resolve_file_path(job.id, "setB", job_file.set_b_path)
+                if path_b.exists():
+                    text_b = await _extract_text_from_pdf(path_b)
+                    text_path_b = text_dir / "setB.txt"
+                    text_path_b.write_text(text_b, encoding="utf-8")
+                    job_file.text_set_b_path = str(text_path_b)
+                    success_b = True
+
+            if not success_a and not success_b:
+                job_file.text_status = TextStatus.missing
+            elif job_file.missing_in_set_a or job_file.missing_in_set_b:
+                job_file.text_status = TextStatus.missing
+            else:
+                job_file.text_status = TextStatus.done
+            await session.commit()
+        except Exception as exc:  # pragma: no cover - runtime safety
+            job_file.text_status = TextStatus.failed
+            job_file.text_error = str(exc)
+            await session.commit()
     await engine.dispose()
 
 
@@ -318,6 +391,17 @@ async def _enqueue_next_batch(session: AsyncSession, job_id: uuid.UUID) -> None:
     await session.commit()
 
 
+async def _enqueue_text_tasks(session: AsyncSession, job_id: uuid.UUID) -> None:
+    result = await session.execute(select(JobFile).where(JobFile.job_id == job_id))
+    files = list(result.scalars().all())
+    for job_file in files:
+        if job_file.missing_in_set_a and job_file.missing_in_set_b:
+            job_file.text_status = TextStatus.missing
+            continue
+        celery_app.send_task("extract_text", args=[str(job_file.id)])
+    await session.commit()
+
+
 def _resolve_file_path(job_id: str, set_name: str, rel_path: str | None) -> Path:
     if not rel_path:
         return Path(settings.data_dir) / "missing"
@@ -371,3 +455,13 @@ def _build_overlay_svg(width: int, height: int, boxes: Iterable[tuple[int, int, 
 
 def _overlay_path(job_id: str, job_file_id: str, page_index: int) -> Path:
     return Path(settings.data_dir) / "jobs" / str(job_id) / "artifacts" / str(job_file_id) / f"page_{page_index}.svg"
+
+
+async def _extract_text_from_pdf(pdf_path: Path) -> str:
+    headers = {"Accept": "text/plain", "Content-Type": "application/pdf"}
+    timeout = httpx.Timeout(60.0, connect=10.0)
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        data = pdf_path.read_bytes()
+        response = await client.put(settings.tika_url, content=data, headers=headers)
+        response.raise_for_status()
+        return response.text
