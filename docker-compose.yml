@@ -47,7 +47,7 @@ services:
       CELERY_BROKER_URL: amqp://guest:guest@rabbitmq:5672//
       CELERY_RESULT_BACKEND: rpc://
       DATA_DIR: /data
-      JWT_SECRET: change-me
+      JWT_SECRET: "${JWT_SECRET}"
       RECAPTCHA_SITE_KEY: "${RECAPTCHA_SITE_KEY}"
       RECAPTCHA_SECRET_KEY: "${RECAPTCHA_SECRET_KEY}"
       RECAPTCHA_MIN_SCORE: "${RECAPTCHA_MIN_SCORE:-0.5}"
@@ -77,7 +77,7 @@ services:
       CELERY_BROKER_URL: amqp://guest:guest@rabbitmq:5672//
       CELERY_RESULT_BACKEND: rpc://
       DATA_DIR: /data
-      JWT_SECRET: change-me
+      JWT_SECRET: "${JWT_SECRET}"
       RENDER_DPI: "150"
       TIKA_URL: http://tika:9998/tika
     volumes:
@@ -102,7 +102,7 @@ services:
       CELERY_BROKER_URL: amqp://guest:guest@rabbitmq:5672//
       CELERY_RESULT_BACKEND: rpc://
       DATA_DIR: /data
-      JWT_SECRET: change-me
+      JWT_SECRET: "${JWT_SECRET}"
       RENDER_DPI: "150"
       TIKA_URL: http://tika:9998/tika
     volumes:
