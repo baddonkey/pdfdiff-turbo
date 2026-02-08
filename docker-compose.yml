@@ -50,7 +50,6 @@ services:
       JWT_SECRET: change-me
       RENDER_DPI: "150"
       TIKA_URL: http://tika:9998/tika
-      TIKA_URL: http://tika:9998/tika
     volumes:
       - data:/data
       - ./samples:/data/samples:ro
@@ -78,7 +77,6 @@ services:
       JWT_SECRET: change-me
       RENDER_DPI: "150"
       TIKA_URL: http://tika:9998/tika
-      TIKA_URL: http://tika:9998/tika
     volumes:
       - data:/data
       - ./samples:/data/samples:ro
@@ -103,7 +101,6 @@ services:
       DATA_DIR: /data
       JWT_SECRET: change-me
       RENDER_DPI: "150"
-      TIKA_URL: http://tika:9998/tika
       TIKA_URL: http://tika:9998/tika
     volumes:
       - data:/data
