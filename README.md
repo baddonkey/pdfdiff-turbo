@@ -107,3 +107,9 @@ KUBECONFIG=/etc/rancher/k3s/k3s.yaml kubectl -n pdfdiff scale deployment flower 
 ```
 /var/lib/rancher/k3s/storage/
 ````
+
+
+
+## Google Captch v3
+
+go to https://www.google.com/recaptcha/admin/create

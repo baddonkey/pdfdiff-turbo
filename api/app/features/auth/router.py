@@ -42,9 +42,9 @@ async def _verify_recaptcha(token: str, remote_ip: str | None, action: str) -> N
 @router.post("/register", response_model=UserMessage)
 async def register(
     command: RegisterCommand,
+    request: Request,
     service: AuthService = Depends(get_auth_service),
     config_service: AppConfigService = Depends(get_app_config_service),
-    request: Request | None = None,
 ) -> UserMessage:
     config = await config_service.get_config()
     if not config.allow_registration:
@@ -52,7 +52,7 @@ async def register(
     if settings.recaptcha_secret_key and settings.recaptcha_site_key:
         if not command.captcha_token:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Captcha required")
-        remote_ip = request.client.host if request and request.client else None
+        remote_ip = request.client.host if request.client else None
         action = command.captcha_action or settings.recaptcha_action
         await _verify_recaptcha(command.captcha_token, remote_ip, action)
     return await service.register(command)
