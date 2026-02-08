@@ -10,6 +10,7 @@ class AppConfigMessage(BaseModel):
     max_jobs_per_user_per_day: int
     file_retention_hours: int
     job_retention_days: int
+    recaptcha_site_key: str | None = None
 
 
 class AppConfigUpdateCommand(BaseModel):

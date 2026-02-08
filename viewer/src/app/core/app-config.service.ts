@@ -6,6 +6,7 @@ export interface AppConfig {
   enable_dropzone: boolean;
   file_retention_hours: number;
   job_retention_days: number;
+  recaptcha_site_key?: string | null;
 }
 
 @Injectable({ providedIn: 'root' })

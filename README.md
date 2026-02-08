@@ -46,6 +46,9 @@ API/Worker:
 - `CELERY_BROKER_URL`
 - `CELERY_RESULT_BACKEND`
 - `JWT_SECRET`
+- `RECAPTCHA_SITE_KEY` (optional)
+- `RECAPTCHA_SECRET_KEY` (optional)
+- `RECAPTCHA_MIN_SCORE` (optional, default 0.5)
 - `RENDER_DPI`
 - `DIFF_THRESHOLD`
 - `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD`
@@ -104,3 +107,9 @@ KUBECONFIG=/etc/rancher/k3s/k3s.yaml kubectl -n pdfdiff scale deployment flower 
 ```
 /var/lib/rancher/k3s/storage/
 ````
+
+
+
+## Google Captch v3
+
+go to https://www.google.com/recaptcha/admin/create
