@@ -13,3 +13,5 @@ patchesStrategicMerge:
   - patches/postgres-resources.yaml
   - patches/rabbitmq-resources.yaml
   - patches/pvc-storageclass.yaml
+  - patches/configmap-recaptcha.yaml
+  - patches/secret-recaptcha.yaml

@@ -17,6 +17,9 @@ downloads/
 certs/
 k8s/overlays/local/tls-secret.yaml
 
+# Local prod secrets (do not commit)
+k8s-prod/patches/*recaptcha*.yaml
+
 eggs/
 .eggs/
 lib/
