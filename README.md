@@ -95,6 +95,10 @@ API/Worker:
 KUBECONFIG=/etc/rancher/k3s/k3s.yaml kubectl -n pdfdiff scale deployment flower --replicas=0
 ```
 
+## Flower (k3s access)
+- Local access (from the k3s server): `kubectl -n pdfdiff port-forward svc/flower 5555:5555`
+- SSH tunnel from your machine: `ssh -L 5555:127.0.0.1:5555 <user>@<server>` then open http://localhost:5555
+
 ## Data Storage on the prod server
 
 ```

@@ -1,4 +1,4 @@
-import { AfterViewInit, Component, OnDestroy, OnInit, TemplateRef, ViewChild } from '@angular/core';
+import { AfterViewInit, Component, ElementRef, HostListener, OnDestroy, OnInit, TemplateRef, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
@@ -80,13 +80,7 @@ import { AppConfigService } from '../../core/app-config.service';
                     (click)="openJobDetails(job.id)"
                     [disabled]="job.files_available === false"
                     [attr.title]="job.files_available === false ? retentionMessage : null"
-                  >Visual Compare</button>
-                  <button
-                    class="btn secondary"
-                    (click)="openJobTextDetails(job.id)"
-                    [disabled]="job.files_available === false"
-                    [attr.title]="job.files_available === false ? retentionMessage : null"
-                  >Text Compare</button>
+                  >Compare</button>
                   <button 
                     class="btn secondary" 
                     (click)="downloadReport(job.id)"
@@ -156,13 +150,7 @@ import { AppConfigService } from '../../core/app-config.service';
                 (click)="$event.stopPropagation(); openJobDetails(job.id)"
                 [disabled]="job.files_available === false"
                 [attr.title]="job.files_available === false ? retentionMessage : null"
-              >Visual Compare</button>
-              <button
-                class="btn secondary"
-                (click)="$event.stopPropagation(); openJobTextDetails(job.id)"
-                [disabled]="job.files_available === false"
-                [attr.title]="job.files_available === false ? retentionMessage : null"
-              >Text Compare</button>
+              >Compare</button>
               <button
                 class="btn secondary"
                 (click)="$event.stopPropagation(); downloadReport(job.id)"
@@ -197,10 +185,148 @@ import { AppConfigService } from '../../core/app-config.service';
       </div>
     </div>
 
-  `
+    <div class="modal-backdrop" *ngIf="reportModalOpen" (click)="closeReportModal()">
+      <div
+        #reportModal
+        class="modal-panel"
+        role="dialog"
+        aria-modal="true"
+        tabindex="-1"
+        (click)="$event.stopPropagation()"
+      >
+        <div class="modal-header">
+          <h3>Download report</h3>
+          <button class="btn secondary" (click)="closeReportModal()">Close</button>
+        </div>
+        <div class="modal-sub">Choose what to export for this job.</div>
+
+        <label class="modal-option">
+          <input
+            type="radio"
+            name="reportType"
+            value="visual"
+            [(ngModel)]="reportTypeSelection"
+          />
+          <div>
+            <div class="modal-option-title">Visual report (PDF)</div>
+            <div class="modal-option-desc">Side-by-side page previews with diff highlights and scores.</div>
+          </div>
+        </label>
+
+        <label class="modal-option">
+          <input
+            type="radio"
+            name="reportType"
+            value="text"
+            [(ngModel)]="reportTypeSelection"
+          />
+          <div>
+            <div class="modal-option-title">Text diff (patch)</div>
+            <div class="modal-option-desc">Unified diff of extracted text, ready for git-style tooling.</div>
+          </div>
+        </label>
+
+        <label class="modal-option">
+          <input
+            type="radio"
+            name="reportType"
+            value="both"
+            [(ngModel)]="reportTypeSelection"
+          />
+          <div>
+            <div class="modal-option-title">Both (ZIP)</div>
+            <div class="modal-option-desc">Bundle the PDF report and text patch into one zip.</div>
+          </div>
+        </label>
+
+        <div class="modal-actions">
+          <button class="btn secondary" (click)="closeReportModal()">Cancel</button>
+          <button class="btn" (click)="confirmReportModal()">Download</button>
+        </div>
+      </div>
+    </div>
+
+  `,
+  styles: [
+    `
+      .modal-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.45);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 16px;
+        z-index: 1000;
+      }
+
+      .modal-panel {
+        width: min(520px, 96vw);
+        background: #ffffff;
+        border-radius: 16px;
+        padding: 20px;
+        box-shadow: 0 24px 60px rgba(15, 23, 42, 0.25);
+        border: 1px solid #e2e8f0;
+      }
+
+      .modal-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 6px;
+      }
+
+      .modal-header h3 {
+        margin: 0;
+        font-size: 18px;
+      }
+
+      .modal-sub {
+        color: #64748b;
+        font-size: 13px;
+        margin-bottom: 16px;
+      }
+
+      .modal-option {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 12px;
+        align-items: start;
+        padding: 12px;
+        border-radius: 12px;
+        border: 1px solid #e2e8f0;
+        background: #f8fafc;
+        cursor: pointer;
+        margin-bottom: 10px;
+      }
+
+      .modal-option input {
+        margin-top: 4px;
+      }
+
+      .modal-option-title {
+        font-weight: 600;
+        color: #0f172a;
+      }
+
+      .modal-option-desc {
+        color: #64748b;
+        font-size: 12px;
+        margin-top: 4px;
+      }
+
+      .modal-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        margin-top: 18px;
+      }
+    `
+  ]
 })
 export class JobsComponent implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild('topbarActions', { static: true }) topbarActionsTpl!: TemplateRef<any>;
+  @ViewChild('reportModal') reportModal?: ElementRef<HTMLDivElement>;
   activeTab: 'dropzone' | 'jobs' = 'dropzone';
   dropzoneEnabled = true;
   private jobsSub?: Subscription;
@@ -229,6 +355,10 @@ export class JobsComponent implements OnInit, AfterViewInit, OnDestroy {
   recentProgress: Record<string, import('../../core/jobs.service').JobProgress> = {};
   generatingReport: Record<string, boolean> = {};
   retentionMessage = 'Files are kept for a limited time. After cleanup, comparisons and reports are not available.';
+  reportModalOpen = false;
+  reportModalJobId = '';
+  reportTypeSelection: 'visual' | 'text' | 'both' = 'visual';
+  private lastFocusedElement: HTMLElement | null = null;
 
   constructor(
     private jobsService: JobsService,
@@ -662,15 +792,101 @@ export class JobsComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   downloadReport(jobId: string) {
+    this.openReportModal(jobId);
+  }
+
+  openReportModal(jobId: string) {
+    this.reportModalJobId = jobId;
+    this.reportTypeSelection = 'visual';
+    this.reportModalOpen = true;
+    this.lastFocusedElement = document.activeElement as HTMLElement | null;
+    setTimeout(() => this.reportModal?.nativeElement.focus(), 0);
+  }
+
+  closeReportModal() {
+    this.reportModalOpen = false;
+    this.reportModalJobId = '';
+    if (this.lastFocusedElement) {
+      this.lastFocusedElement.focus();
+    }
+  }
+
+  confirmReportModal() {
+    if (!this.reportModalJobId) {
+      return;
+    }
+    const jobId = this.reportModalJobId;
+    const reportType = this.reportTypeSelection;
+    this.reportModalOpen = false;
+    this.reportModalJobId = '';
+    this.startReportDownload(jobId, reportType);
+  }
+
+  @HostListener('document:keydown', ['$event'])
+  onDocumentKeydown(event: KeyboardEvent) {
+    if (!this.reportModalOpen) {
+      return;
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      this.closeReportModal();
+      return;
+    }
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      this.confirmReportModal();
+      return;
+    }
+    if (event.key === 'Tab') {
+      this.trapModalFocus(event);
+    }
+  }
+
+  private trapModalFocus(event: KeyboardEvent) {
+    const modal = this.reportModal?.nativeElement;
+    if (!modal) {
+      return;
+    }
+    const focusables = Array.from(
+      modal.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      )
+    ).filter(el => !el.hasAttribute('disabled'));
+
+    if (focusables.length === 0) {
+      event.preventDefault();
+      modal.focus();
+      return;
+    }
+
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    const active = document.activeElement as HTMLElement | null;
+
+    if (event.shiftKey && (active === first || active === modal)) {
+      event.preventDefault();
+      last.focus();
+      return;
+    }
+    if (!event.shiftKey && active === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
+  private startReportDownload(jobId: string, reportType: 'visual' | 'text' | 'both') {
     this.generatingReport = { ...this.generatingReport, [jobId]: true };
     this.message = '';
     this.error = '';
-    this.jobsService.downloadReport(jobId).subscribe({
-      next: (blob: Blob) => {
+    this.jobsService.downloadReport(jobId, reportType).subscribe({
+      next: (resp) => {
+        const blob = resp.body as Blob;
+        const disposition = resp.headers.get('content-disposition');
+        const filename = this.getReportFilename(disposition, reportType, jobId);
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `diff-report-${jobId}.pdf`;
+        a.download = filename;
         document.body.appendChild(a);
         a.click();
         window.URL.revokeObjectURL(url);
@@ -683,6 +899,22 @@ export class JobsComponent implements OnInit, AfterViewInit, OnDestroy {
         this.error = this.formatError(err, 'Failed to generate report.');
       }
     });
+  }
+
+  private getReportFilename(disposition: string | null, reportType: 'visual' | 'text' | 'both', jobId: string) {
+    if (disposition) {
+      const match = /filename="?([^";]+)"?/i.exec(disposition);
+      if (match?.[1]) {
+        return match[1];
+      }
+    }
+    if (reportType === 'text') {
+      return `text-diff-${jobId}.patch`;
+    }
+    if (reportType === 'both') {
+      return `pdfdiff-reports-${jobId}.zip`;
+    }
+    return `diff-report-${jobId}.pdf`;
   }
 
   loadProgress() {

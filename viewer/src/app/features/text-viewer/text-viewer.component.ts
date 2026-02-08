@@ -21,7 +21,6 @@ import { TopbarActionsService } from '../../core/topbar-actions.service';
         </div>
         <div style="display:flex; align-items:center; gap: 8px;">
           <button class="btn secondary" (click)="goToVisual()">Visual Compare</button>
-          <button class="btn" disabled>Text Compare</button>
           <button class="btn secondary" (click)="prevDiff()" [disabled]="!hasDiffs">Prev Diff</button>
           <button class="btn" (click)="nextDiff()" [disabled]="!hasDiffs">Next Diff</button>
         </div>
