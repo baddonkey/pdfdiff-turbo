@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: beat
-          image: localhost/pdfdiff-turbo-beat:1.1.9
+          image: localhost/pdfdiff-turbo-beat:1.1.10
           imagePullPolicy: IfNotPresent
           envFrom:
             - configMapRef:
