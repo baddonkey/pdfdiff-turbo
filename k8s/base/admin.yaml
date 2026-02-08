@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: admin
-          image: localhost/pdfdiff-turbo-admin:1.1.16
+          image: localhost/pdfdiff-turbo-admin:1.1.17
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 80

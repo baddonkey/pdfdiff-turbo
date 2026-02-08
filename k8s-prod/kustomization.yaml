@@ -15,3 +15,4 @@ patchesStrategicMerge:
   - patches/pvc-storageclass.yaml
   - patches/configmap-recaptcha.yaml
   - patches/secret-recaptcha.yaml
+  - patches/secret-api.yaml
