@@ -21,6 +21,8 @@ import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
           <h2 style="margin:0;" *ngIf="currentFile">{{ currentFile.relative_path }}</h2>
         </div>
         <div style="display:flex; align-items:center; gap: 8px;">
+          <button class="btn" disabled>Visual Compare</button>
+          <button class="btn secondary" (click)="goToText()">Text Compare</button>
           <button class="btn secondary" [class.magnifier-active]="magnifierEnabled" (click)="toggleMagnifier()" style="display: flex; align-items: center; gap: 6px;">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="11" cy="11" r="8"></circle>
@@ -483,6 +485,11 @@ export class ViewerComponent implements OnInit, OnDestroy {
 
   backToJobs() {
     this.router.navigate(['/jobs']);
+  }
+
+  goToText() {
+    if (!this.jobId || !this.fileId) return;
+    this.router.navigate(['/jobs', this.jobId, 'files', this.fileId, 'text']);
   }
 
   toggleMagnifier() {

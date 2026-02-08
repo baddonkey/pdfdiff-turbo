@@ -47,6 +47,7 @@ class JobFileMessage(BaseModel):
     missing_in_set_a: bool
     missing_in_set_b: bool
     has_diffs: bool = False
+    text_status: str | None = None
     status: str = "ready"
     created_at: datetime
 

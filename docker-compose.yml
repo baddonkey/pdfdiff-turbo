@@ -30,6 +30,12 @@ services:
       retries: 20
     restart: unless-stopped
 
+  tika:
+    image: apache/tika:2.9.0.0
+    ports:
+      - "9998:9998"
+    restart: unless-stopped
+
   api:
     build: 
       context: .
@@ -43,6 +49,8 @@ services:
       DATA_DIR: /data
       JWT_SECRET: change-me
       RENDER_DPI: "150"
+      TIKA_URL: http://tika:9998/tika
+      TIKA_URL: http://tika:9998/tika
     volumes:
       - data:/data
       - ./samples:/data/samples:ro
@@ -69,6 +77,8 @@ services:
       DATA_DIR: /data
       JWT_SECRET: change-me
       RENDER_DPI: "150"
+      TIKA_URL: http://tika:9998/tika
+      TIKA_URL: http://tika:9998/tika
     volumes:
       - data:/data
       - ./samples:/data/samples:ro
@@ -93,6 +103,8 @@ services:
       DATA_DIR: /data
       JWT_SECRET: change-me
       RENDER_DPI: "150"
+      TIKA_URL: http://tika:9998/tika
+      TIKA_URL: http://tika:9998/tika
     volumes:
       - data:/data
       - ./samples:/data/samples:ro
@@ -118,6 +130,12 @@ services:
         condition: service_healthy
     ports:
       - "5555:5555"
+    restart: unless-stopped
+
+  tika:
+    image: apache/tika:2.9.0.0
+    ports:
+      - "9998:9998"
     restart: unless-stopped
 
   viewer:
