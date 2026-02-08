@@ -1,3 +1,5 @@
+import io
+import zipfile
 from pathlib import Path
 from datetime import datetime
 
@@ -526,6 +528,7 @@ async def get_file_text(
 @router.get("/{job_id}/report")
 async def get_job_report(
     job_id: str,
+    report_type: str = Query("visual", alias="type", pattern="^(visual|text|both)$"),
     service: JobService = Depends(get_job_service),
     repo=Depends(get_job_repository),
     user: User = Depends(get_current_user),
@@ -533,11 +536,41 @@ async def get_job_report(
     job = await repo.get_by_id_and_user(job_id, str(user.id))
     if not job:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
-    
-    report_bytes = await service.generate_report(job)
-    
+
+    report_type = report_type.lower()
+    if report_type == "visual":
+        report_bytes = await service.generate_report(job)
+        return Response(
+            content=report_bytes,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f"attachment; filename=diff-report-{job_id}.pdf",
+                "X-Report-Type": report_type,
+            },
+        )
+
+    if report_type == "text":
+        report_bytes = await service.generate_text_report(job)
+        return Response(
+            content=report_bytes,
+            media_type="text/plain; charset=utf-8",
+            headers={
+                "Content-Disposition": f"attachment; filename=text-diff-{job_id}.patch",
+                "X-Report-Type": report_type,
+            },
+        )
+
+    visual_bytes = await service.generate_report(job)
+    text_bytes = await service.generate_text_report(job)
+    archive = io.BytesIO()
+    with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr(f"diff-report-{job_id}.pdf", visual_bytes)
+        zf.writestr(f"text-diff-{job_id}.patch", text_bytes)
     return Response(
-        content=report_bytes,
-        media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename=diff-report-{job_id}.pdf"}
+        content=archive.getvalue(),
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f"attachment; filename=pdfdiff-reports-{job_id}.zip",
+            "X-Report-Type": report_type,
+        },
     )

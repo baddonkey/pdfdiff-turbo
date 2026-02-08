@@ -16,7 +16,6 @@ spec:
         - api.pdfdiff-turbo.nachbrenner.ch
         - admin.pdfdiff-turbo.nachbrenner.ch
         - viewer.pdfdiff-turbo.nachbrenner.ch
-        - flower.pdfdiff-turbo.nachbrenner.ch
   rules:
     - host: api.pdfdiff-turbo.nachbrenner.ch
       http:
@@ -48,13 +47,3 @@ spec:
                 name: viewer
                 port:
                   number: 80
-    - host: flower.pdfdiff-turbo.nachbrenner.ch
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: flower
-                port:
-                  number: 5555

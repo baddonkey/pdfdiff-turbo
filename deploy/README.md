@@ -46,6 +46,9 @@ Install (Fedora):
 
 Notes:
 - `load_images.py` imports into k3s/containerd when available; use sudo for k3s.
+ - Flower UI is not exposed via the prod ingress. Use `kubectl -n pdfdiff port-forward svc/flower 5555:5555` if needed.
+ - Local access (from the k3s server): `kubectl -n pdfdiff port-forward svc/flower 5555:5555`
+ - SSH tunnel from your machine: `ssh -L 5555:127.0.0.1:5555 <user>@<server>` then open http://localhost:5555
 
 4) Deploy:
 - `sudo python deploy/deploy.py`
