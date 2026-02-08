@@ -48,8 +48,8 @@ services:
       CELERY_RESULT_BACKEND: rpc://
       DATA_DIR: /data
       JWT_SECRET: change-me
-      RECAPTCHA_SITE_KEY: ""
-      RECAPTCHA_SECRET_KEY: ""
+      RECAPTCHA_SITE_KEY: "6LeOkWQsAAAAAF2J_BKB7NaYgdPSOF8yoxK125s3"
+      RECAPTCHA_SECRET_KEY: "6LeOkWQsAAAAACq-uL7nRMFetV9SCcPsKXAJ1R3i"
       RECAPTCHA_MIN_SCORE: "0.5"
       RENDER_DPI: "150"
       TIKA_URL: http://tika:9998/tika
