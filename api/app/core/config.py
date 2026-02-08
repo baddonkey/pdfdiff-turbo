@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     render_dpi: int = 150
     diff_threshold: int = 5
     tika_url: str = "http://tika:9998/tika"
+    recaptcha_site_key: str = ""
+    recaptcha_secret_key: str = ""
+    recaptcha_min_score: float = 0.5
+    recaptcha_action: str = "register"
 
 
 settings = Settings()

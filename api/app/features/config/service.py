@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.features.config.models import AppConfig
 from app.features.config.repository import AppConfigRepository
 from app.features.config.schemas import AppConfigMessage, AppConfigUpdateCommand
+from app.core.config import settings
 
 
 class AppConfigService:
@@ -27,6 +28,7 @@ class AppConfigService:
             max_jobs_per_user_per_day=config.max_jobs_per_user_per_day,
             file_retention_hours=config.file_retention_hours,
             job_retention_days=config.job_retention_days,
+            recaptcha_site_key=settings.recaptcha_site_key or None,
         )
 
     async def update_config(self, command: AppConfigUpdateCommand) -> AppConfigMessage:
@@ -65,4 +67,5 @@ class AppConfigService:
             max_jobs_per_user_per_day=config.max_jobs_per_user_per_day,
             file_retention_hours=config.file_retention_hours,
             job_retention_days=config.job_retention_days,
+            recaptcha_site_key=settings.recaptcha_site_key or None,
         )
