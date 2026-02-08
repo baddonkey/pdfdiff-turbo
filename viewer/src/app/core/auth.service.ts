@@ -30,8 +30,13 @@ export class AuthService {
     return !!localStorage.getItem('access_token');
   }
 
-  register(email: string, password: string) {
-    return this.http.post(`${this.baseUrl}/auth/register`, { email, password });
+  register(email: string, password: string, captchaToken?: string | null, captchaAction?: string | null) {
+    return this.http.post(`${this.baseUrl}/auth/register`, {
+      email,
+      password,
+      captcha_token: captchaToken || undefined,
+      captcha_action: captchaAction || undefined
+    });
   }
 
   login(email: string, password: string) {

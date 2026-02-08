@@ -29,7 +29,12 @@ import { AppConfigService } from '../../core/app-config.service';
           <input class="input" [(ngModel)]="registerEmail" name="registerEmail" type="email" required />
           <label>Password</label>
           <input class="input" [(ngModel)]="registerPassword" name="registerPassword" type="password" required />
-          <button class="btn secondary" type="submit" style="margin-top: 10px;">Register</button>
+          <button
+            class="btn secondary"
+            type="submit"
+            style="margin-top: 10px;"
+            [disabled]="recaptchaSiteKey && !recaptchaReady"
+          >Register</button>
         </form>
         <p *ngIf="message" style="color:#166534;">{{ message }}</p>
       </div>
@@ -50,6 +55,9 @@ export class AuthComponent implements OnInit {
   message = '';
   error = '';
   registrationEnabled = true;
+  recaptchaSiteKey = '';
+  recaptchaReady = false;
+  private recaptchaAction = 'register';
 
   constructor(private auth: AuthService, private router: Router, private config: AppConfigService) {}
 
@@ -57,6 +65,10 @@ export class AuthComponent implements OnInit {
     this.config.getConfig().subscribe({
       next: cfg => {
         this.registrationEnabled = cfg.allow_registration;
+        this.recaptchaSiteKey = cfg.recaptcha_site_key || '';
+        if (this.recaptchaSiteKey) {
+          this.loadRecaptchaScript(this.recaptchaSiteKey);
+        }
       },
       error: () => {
         this.registrationEnabled = true;
@@ -79,10 +91,14 @@ export class AuthComponent implements OnInit {
     });
   }
 
-  register() {
+  async register() {
     this.message = '';
     this.error = '';
-    this.auth.register(this.registerEmail, this.registerPassword).subscribe({
+    const captchaToken = await this.getRecaptchaToken();
+    if (this.recaptchaSiteKey && !captchaToken) {
+      return;
+    }
+    this.auth.register(this.registerEmail, this.registerPassword, captchaToken, this.recaptchaAction).subscribe({
       next: () => {
         this.loginEmail = this.registerEmail;
         this.loginPassword = this.registerPassword;
@@ -92,5 +108,48 @@ export class AuthComponent implements OnInit {
         this.error = err?.error?.detail ?? 'Registration failed.';
       }
     });
+  }
+
+  private loadRecaptchaScript(siteKey: string) {
+    if (document.getElementById('recaptcha-script')) {
+      this.recaptchaReady = !!(window as any).grecaptcha;
+      return;
+    }
+    const script = document.createElement('script');
+    script.id = 'recaptcha-script';
+    script.src = `https://www.google.com/recaptcha/api.js?render=${encodeURIComponent(siteKey)}`;
+    script.async = true;
+    script.defer = true;
+    script.onload = () => {
+      this.recaptchaReady = true;
+    };
+    script.onerror = () => {
+      this.error = 'Failed to load captcha.';
+    };
+    document.body.appendChild(script);
+  }
+
+  private async getRecaptchaToken(): Promise<string | null> {
+    if (!this.recaptchaSiteKey) {
+      return null;
+    }
+    const grecaptcha = (window as any).grecaptcha;
+    if (!grecaptcha || !grecaptcha.ready) {
+      this.error = 'Captcha not ready. Please retry.';
+      return null;
+    }
+    try {
+      return await new Promise<string>((resolve, reject) => {
+        grecaptcha.ready(() => {
+          grecaptcha
+            .execute(this.recaptchaSiteKey, { action: this.recaptchaAction })
+            .then((token: string) => resolve(token))
+            .catch(reject);
+        });
+      });
+    } catch {
+      this.error = 'Captcha failed. Please retry.';
+      return null;
+    }
   }
 }

@@ -5,6 +5,8 @@ from pydantic import BaseModel, EmailStr
 class RegisterCommand(BaseModel):
     email: EmailStr
     password: str
+    captcha_token: str | None = None
+    captcha_action: str | None = None
 
 
 class LoginCommand(BaseModel):

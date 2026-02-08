@@ -11,3 +11,5 @@ data:
   DATA_DIR: /data
   RENDER_DPI: "150"
   TIKA_URL: http://tika:9998/tika
+  RECAPTCHA_SITE_KEY: ""
+  RECAPTCHA_MIN_SCORE: "0.5"
