@@ -3,6 +3,7 @@ import re
 import shutil
 import zipfile
 import json
+import difflib
 from pathlib import Path, PurePosixPath
 from typing import Iterable
 from datetime import datetime
@@ -786,3 +787,61 @@ class JobService:
             # Cleanup temp directory
             if report_dir.exists():
                 shutil.rmtree(report_dir)
+
+    async def generate_text_report(self, job: Job) -> bytes:
+        files = await self._file_repo.list_for_job(job.id)
+        report_lines: list[str] = []
+        report_lines.append("# PDF Diff Text Report")
+        report_lines.append(f"# Job ID: {self._display_id(job)}")
+        report_lines.append(f"# Set A: {job.set_a_label or 'setA'}")
+        report_lines.append(f"# Set B: {job.set_b_label or 'setB'}")
+        report_lines.append("")
+
+        diffs_found = False
+        for file_item in files:
+            rel_path = file_item.relative_path
+            text_a = self._read_text_for_report(job, file_item, "A")
+            text_b = self._read_text_for_report(job, file_item, "B")
+
+            a_lines = text_a.splitlines(keepends=True)
+            b_lines = text_b.splitlines(keepends=True)
+
+            diff = list(
+                difflib.unified_diff(
+                    a_lines,
+                    b_lines,
+                    fromfile=f"a/{rel_path}",
+                    tofile=f"b/{rel_path}",
+                    lineterm="",
+                )
+            )
+            if diff:
+                diffs_found = True
+                report_lines.extend(diff)
+                report_lines.append("")
+
+        if not diffs_found:
+            report_lines.append("# No text differences detected.")
+
+        payload = "\n".join(report_lines).rstrip() + "\n"
+        return payload.encode("utf-8")
+
+    def _read_text_for_report(self, job: Job, file_item: JobFile, set_name: str) -> str:
+        if set_name == "A":
+            explicit = file_item.text_set_a_path
+            default_name = "setA.txt"
+        else:
+            explicit = file_item.text_set_b_path
+            default_name = "setB.txt"
+
+        if explicit:
+            path = Path(explicit)
+        else:
+            path = Path(settings.data_dir) / "jobs" / str(job.id) / "text" / str(file_item.id) / default_name
+
+        if not path.exists():
+            return ""
+        try:
+            return path.read_text(encoding="utf-8")
+        except Exception:
+            return ""

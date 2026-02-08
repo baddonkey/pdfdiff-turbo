@@ -21,7 +21,6 @@ import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
           <h2 style="margin:0;" *ngIf="currentFile">{{ currentFile.relative_path }}</h2>
         </div>
         <div style="display:flex; align-items:center; gap: 8px;">
-          <button class="btn" disabled>Visual Compare</button>
           <button class="btn secondary" (click)="goToText()">Text Compare</button>
           <button class="btn secondary" [class.magnifier-active]="magnifierEnabled" (click)="toggleMagnifier()" style="display: flex; align-items: center; gap: 6px;">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -88,7 +87,7 @@ import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
               (mousemove)="onMagnifierMove($event, 'A')"
               (mouseleave)="hideMagnifier('A')"
             >
-              <div class="page-size">{{ job?.set_a_label || 'Set A' }} - {{ pageSizeLabel }}</div>
+              <div class="page-size">{{ job?.set_a_label || 'Set A' }} - {{ pageMetaLabel }}</div>
               <canvas #canvasA></canvas>
               <div class="overlay overlay-left" [style.width.px]="overlayWidth" [style.height.px]="overlayHeight" [innerHTML]="overlaySvgLeft"></div>
             </div>
@@ -100,7 +99,7 @@ import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
               (mousemove)="onMagnifierMove($event, 'B')"
               (mouseleave)="hideMagnifier('B')"
             >
-              <div class="page-size">{{ job?.set_b_label || 'Set B' }} - {{ pageSizeLabel }}</div>
+              <div class="page-size">{{ job?.set_b_label || 'Set B' }} - {{ pageMetaLabel }}</div>
               <canvas #canvasB></canvas>
               <div class="overlay overlay-right" [style.width.px]="overlayWidth" [style.height.px]="overlayHeight" [innerHTML]="overlaySvgRight"></div>
             </div>
@@ -158,6 +157,9 @@ export class ViewerComponent implements OnInit, OnDestroy {
   overlayRenderHeight = 0;
   loadError = '';
   pageSizeLabel = '';
+  pageDiffLabel = '';
+  pageDiffCountLabel = '';
+  diffCircleCount = 0;
 
   magnifierEnabled = false;
   magnifierSize = 160;
@@ -359,6 +361,9 @@ export class ViewerComponent implements OnInit, OnDestroy {
       return;
     }
 
+    this.pageDiffLabel = this.formatDiffScore(page.diff_score);
+    this.diffCircleCount = 0;
+    this.pageDiffCountLabel = this.formatDiffCount(0);
     this.overlaySvgLeft = '';
     this.overlaySvgRight = '';
     this.overlaySvgRaw = '';
@@ -371,9 +376,12 @@ export class ViewerComponent implements OnInit, OnDestroy {
     if (page.status === 'done') {
       this.jobs.getOverlay(this.jobId, this.fileId, String(page.page_index)).subscribe({
         next: svg => {
-          this.overlaySvgRaw = svg;
-          this.overlayImage = this.buildOverlayImage(svg);
-          const safe = this.sanitizer.bypassSecurityTrustHtml(svg);
+          const processed = this.processOverlaySvg(svg);
+          this.overlaySvgRaw = processed.svg;
+          this.diffCircleCount = processed.circleCount;
+          this.pageDiffCountLabel = this.formatDiffCount(processed.circleCount);
+          this.overlayImage = this.buildOverlayImage(processed.svg);
+          const safe = this.sanitizer.bypassSecurityTrustHtml(processed.svg);
           this.overlaySvgLeft = safe;
           this.overlaySvgRight = safe;
         },
@@ -383,6 +391,8 @@ export class ViewerComponent implements OnInit, OnDestroy {
           this.overlaySvgRaw = '';
           this.overlayImage = undefined;
           this.overlayImageReady = false;
+          this.diffCircleCount = 0;
+          this.pageDiffCountLabel = this.formatDiffCount(0);
           if (this.overlayImageUrl) {
             URL.revokeObjectURL(this.overlayImageUrl);
             this.overlayImageUrl = undefined;
@@ -443,6 +453,37 @@ export class ViewerComponent implements OnInit, OnDestroy {
     const heightMm = (viewport1.height * 25.4) / 72;
     this.pageSizeLabel = `${widthMm.toFixed(0)} × ${heightMm.toFixed(0)} mm`;
     await page.render({ canvasContext: context, viewport }).promise;
+  }
+
+  get pageMetaLabel(): string {
+    const parts = [this.pageSizeLabel, this.pageDiffLabel, this.pageDiffCountLabel].filter(Boolean);
+    return parts.join(' · ');
+  }
+
+  private formatDiffScore(score: number | null) {
+    if (score === null || score === undefined) {
+      return 'Diff: n/a';
+    }
+    return `Diff: ${score.toFixed(2)}%`;
+  }
+
+  private formatDiffCount(count: number) {
+    return `Diffs: ${count}`;
+  }
+
+  private processOverlaySvg(svg: string) {
+    const circleRegex = /<circle\b[^>]*\/>/g;
+    const circles = svg.match(circleRegex) || [];
+    const circleCount = circles.length;
+    if (circleCount > 100) {
+      const firstTen = circles.slice(0, 10).join('\n');
+      let trimmed = svg.replace(circleRegex, '');
+      const background = '<rect width="100%" height="100%" fill="rgba(255,0,0,0.1)" />\n';
+      trimmed = trimmed.replace(/<svg([^>]*)>/, `<svg$1>${background}`);
+      trimmed = trimmed.replace(/<\/svg>/, `${firstTen}\n</svg>`);
+      return { svg: trimmed, circleCount };
+    }
+    return { svg, circleCount };
   }
 
   private clearCanvas(canvas: HTMLCanvasElement) {

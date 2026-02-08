@@ -253,8 +253,12 @@ export class JobsService {
     });
   }
 
-  downloadReport(jobId: string) {
+  downloadReport(jobId: string, reportType: 'visual' | 'text' | 'both') {
     const timestamp = Date.now();
-    return this.http.get(`${this.baseUrl}/jobs/${jobId}/report?t=${timestamp}`, { responseType: 'blob' });
+    const params = new URLSearchParams({ t: String(timestamp), type: reportType });
+    return this.http.get(`${this.baseUrl}/jobs/${jobId}/report?${params.toString()}`, {
+      responseType: 'blob',
+      observe: 'response'
+    });
   }
 }
