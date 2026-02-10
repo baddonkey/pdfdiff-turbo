@@ -41,6 +41,8 @@ services:
       context: .
       dockerfile: ./api/Dockerfile
     image: pdfdiff-turbo-api:1.1.17
+    profiles:
+      - prod
     environment:
       PROJECT_NAME: pdfdiff-turbo
       DATABASE_URL: postgresql+asyncpg://pdfdiff:pdfdiff@postgres:5432/pdfdiff
@@ -64,6 +66,42 @@ services:
     ports:
       - "8000:8000"
     command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    restart: unless-stopped
+
+  api-dev:
+    build:
+      context: .
+      dockerfile: ./api/Dockerfile
+    image: pdfdiff-turbo-api:1.1.17
+    profiles:
+      - dev
+    environment:
+      PROJECT_NAME: pdfdiff-turbo
+      DATABASE_URL: postgresql+asyncpg://pdfdiff:pdfdiff@postgres:5432/pdfdiff
+      CELERY_BROKER_URL: amqp://guest:guest@rabbitmq:5672//
+      CELERY_RESULT_BACKEND: rpc://
+      DATA_DIR: /data
+      JWT_SECRET: "${JWT_SECRET}"
+      RECAPTCHA_SITE_KEY: "${RECAPTCHA_SITE_KEY}"
+      RECAPTCHA_SECRET_KEY: "${RECAPTCHA_SECRET_KEY}"
+      RECAPTCHA_MIN_SCORE: "${RECAPTCHA_MIN_SCORE:-0.5}"
+      RENDER_DPI: "150"
+      TIKA_URL: http://tika:9998/tika
+    volumes:
+      - data:/data
+      - ./samples:/data/samples:ro
+      - ./api/app:/app/app
+      - ./api/alembic:/app/alembic
+      - ./api/alembic.ini:/app/alembic.ini
+      - ./VERSION:/app/VERSION
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
     restart: unless-stopped
 
   worker:
@@ -132,12 +170,6 @@ services:
       - "5555:5555"
     restart: unless-stopped
 
-  tika:
-    image: apache/tika:2.9.0.0
-    ports:
-      - "9998:9998"
-    restart: unless-stopped
-
   viewer:
     build: ./viewer
     image: pdfdiff-turbo-viewer:1.1.17
@@ -159,6 +191,8 @@ services:
       CHOKIDAR_USEPOLLING: "true"
       WATCHPACK_POLLING: "true"
       CHOKIDAR_INTERVAL: "1000"
+    depends_on:
+      - api-dev
     volumes:
       - ./viewer:/app
       - viewer_angular_cache:/app/.angular

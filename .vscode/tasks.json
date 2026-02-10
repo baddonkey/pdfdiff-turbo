@@ -1,0 +1,18 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "podman compose up",
+			"type": "shell",
+			"command": "podman",
+			"args": [
+				"compose",
+				"up",
+				"-d"
+			],
+			"isBackground": true,
+			"problemMatcher": [],
+			"group": "build"
+		}
+	]
+}
