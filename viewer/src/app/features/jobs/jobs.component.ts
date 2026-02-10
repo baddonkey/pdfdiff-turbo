@@ -1,7 +1,7 @@
 import { AfterViewInit, Component, ElementRef, HostListener, OnDestroy, OnInit, TemplateRef, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { Router } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { JobsService, JobFile, JobSummary } from '../../core/jobs.service';
 import { TopbarActionsService } from '../../core/topbar-actions.service';
@@ -10,7 +10,7 @@ import { AppConfigService } from '../../core/app-config.service';
 @Component({
   selector: 'app-jobs',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [CommonModule, FormsModule],
   template: `
     <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 16px; align-items: start;">
       <ng-template #topbarActions>

@@ -13,6 +13,11 @@ class AppConfigMessage(BaseModel):
     recaptcha_site_key: str | None = None
 
 
+class PublicAppConfigMessage(BaseModel):
+    allow_registration: bool
+    recaptcha_site_key: str | None = None
+
+
 class AppConfigUpdateCommand(BaseModel):
     allow_registration: bool | None = None
     enable_dropzone: bool | None = None

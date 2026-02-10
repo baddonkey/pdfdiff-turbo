@@ -9,6 +9,11 @@ export interface AppConfig {
   recaptcha_site_key?: string | null;
 }
 
+export interface PublicAppConfig {
+  allow_registration: boolean;
+  recaptcha_site_key?: string | null;
+}
+
 @Injectable({ providedIn: 'root' })
 export class AppConfigService {
   private baseUrl = '/api';
@@ -17,5 +22,9 @@ export class AppConfigService {
 
   getConfig() {
     return this.http.get<AppConfig>(`${this.baseUrl}/config`);
+  }
+
+  getPublicConfig() {
+    return this.http.get<PublicAppConfig>(`${this.baseUrl}/config/public`);
   }
 }

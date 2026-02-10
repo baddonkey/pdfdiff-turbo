@@ -62,7 +62,7 @@ export class AuthComponent implements OnInit {
   constructor(private auth: AuthService, private router: Router, private config: AppConfigService) {}
 
   ngOnInit() {
-    this.config.getConfig().subscribe({
+    this.config.getPublicConfig().subscribe({
       next: cfg => {
         this.registrationEnabled = cfg.allow_registration;
         this.recaptchaSiteKey = cfg.recaptcha_site_key || '';
