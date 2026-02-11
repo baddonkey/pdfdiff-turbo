@@ -1,5 +1,4 @@
 import asyncio
-import io
 import shutil
 import uuid
 import zipfile
@@ -522,14 +521,6 @@ async def _generate_report_async(report_id: str) -> None:
         service = JobService(session, job_repo, file_repo, page_repo)
 
         try:
-            visual_bytes = await service.generate_report(job)
-            text_bytes = await service.generate_text_report(job)
-            archive = io.BytesIO()
-            with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as zf:
-                zf.writestr(f"diff-report-{job.id}.pdf", visual_bytes)
-                zf.writestr(f"text-diff-{job.id}.patch", text_bytes)
-            bundle_bytes = archive.getvalue()
-
             visual_filename = f"diff-report-{job.id}.pdf"
             text_filename = f"text-diff-{job.id}.patch"
             bundle_filename = f"pdfdiff-reports-{job.id}.zip"
@@ -539,9 +530,13 @@ async def _generate_report_async(report_id: str) -> None:
             visual_path = reports_dir / visual_filename
             text_path = reports_dir / text_filename
             bundle_path = reports_dir / bundle_filename
-            visual_path.write_bytes(visual_bytes)
-            text_path.write_bytes(text_bytes)
-            bundle_path.write_bytes(bundle_bytes)
+
+            await service.generate_report_file(job, visual_path)
+            await service.generate_text_report_file(job, text_path)
+
+            with zipfile.ZipFile(bundle_path, "w", zipfile.ZIP_DEFLATED) as zf:
+                zf.write(visual_path, arcname=visual_filename)
+                zf.write(text_path, arcname=text_filename)
 
             report.report_type = ReportType.both
             report.output_path = str(bundle_path)
