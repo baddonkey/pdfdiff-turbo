@@ -16,6 +16,7 @@ celery_app.conf.task_routes = {
 	"enqueue_pages": {"queue": "jobs"},
 	"compare_page": {"queue": "pages"},
 	"extract_text": {"queue": "jobs"},
+	"generate_report": {"queue": "reports"},
 	"cleanup_retention": {"queue": "jobs"},
 }
 celery_app.conf.include = ["app.worker.tasks"]

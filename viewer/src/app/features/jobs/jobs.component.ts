@@ -3,9 +3,22 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { Subscription } from 'rxjs';
-import { JobsService, JobFile, JobSummary } from '../../core/jobs.service';
+import { JobsService, JobFile, JobSummary, ReportEvent, ReportSummary } from '../../core/jobs.service';
 import { TopbarActionsService } from '../../core/topbar-actions.service';
 import { AppConfigService } from '../../core/app-config.service';
+
+type ReportStatus = 'queued' | 'running' | 'done' | 'failed';
+type ReportType = 'visual' | 'text' | 'both';
+
+interface ReportState {
+  reportId: string;
+  status: ReportStatus;
+  progress: number;
+  visualFilename?: string | null;
+  textFilename?: string | null;
+  bundleFilename?: string | null;
+  error?: string | null;
+}
 
 @Component({
   selector: 'app-jobs',
@@ -81,13 +94,13 @@ import { AppConfigService } from '../../core/app-config.service';
                     [disabled]="job.files_available === false"
                     [attr.title]="job.files_available === false ? retentionMessage : null"
                   >Compare</button>
-                  <button 
-                    class="btn secondary" 
-                    (click)="downloadReport(job.id)"
-                    [disabled]="generatingReport[job.id] || job.files_available === false"
+                  <button
+                    class="btn secondary"
+                    (click)="handleReportClick(job.id)"
+                    [disabled]="isReportBusy(job.id) || job.files_available === false"
                     [attr.title]="job.files_available === false ? retentionMessage : null"
                   >
-                    {{ generatingReport[job.id] ? 'Generating...' : 'Report' }}
+                    {{ reportButtonLabel(job.id) }}
                   </button>
                   <button
                     class="btn"
@@ -153,10 +166,10 @@ import { AppConfigService } from '../../core/app-config.service';
               >Compare</button>
               <button
                 class="btn secondary"
-                (click)="$event.stopPropagation(); downloadReport(job.id)"
-                [disabled]="generatingReport[job.id] || job.files_available === false"
+                (click)="$event.stopPropagation(); handleReportClick(job.id)"
+                [disabled]="isReportBusy(job.id) || job.files_available === false"
                 [attr.title]="job.files_available === false ? retentionMessage : null"
-              >{{ generatingReport[job.id] ? 'Generating...' : 'Report' }}</button>
+              >{{ reportButtonLabel(job.id) }}</button>
               <button
                 class="btn"
                 *ngIf="hasPending(job.progress)"
@@ -198,7 +211,7 @@ import { AppConfigService } from '../../core/app-config.service';
           <h3>Download report</h3>
           <button class="btn secondary" (click)="closeReportModal()">Close</button>
         </div>
-        <div class="modal-sub">Choose what to export for this job.</div>
+        <div class="modal-sub">Choose what to download for this job.</div>
 
         <label class="modal-option">
           <input
@@ -330,6 +343,7 @@ export class JobsComponent implements OnInit, AfterViewInit, OnDestroy {
   activeTab: 'dropzone' | 'jobs' = 'dropzone';
   dropzoneEnabled = true;
   private jobsSub?: Subscription;
+  private reportSub?: Subscription;
   get selectedJob() {
     return this.jobList.find(job => job.id === this.jobId) || null;
   }
@@ -353,11 +367,12 @@ export class JobsComponent implements OnInit, AfterViewInit, OnDestroy {
   error = '';
   jobProgress: import('../../core/jobs.service').JobProgress | null = null;
   recentProgress: Record<string, import('../../core/jobs.service').JobProgress> = {};
-  generatingReport: Record<string, boolean> = {};
+  reportStateByJobId: Record<string, ReportState> = {};
   retentionMessage = 'Files are kept for a limited time. After cleanup, comparisons and reports are not available.';
   reportModalOpen = false;
   reportModalJobId = '';
-  reportTypeSelection: 'visual' | 'text' | 'both' = 'visual';
+  reportModalReportId = '';
+  reportTypeSelection: ReportType = 'visual';
   private lastFocusedElement: HTMLElement | null = null;
 
   constructor(
@@ -386,6 +401,11 @@ export class JobsComponent implements OnInit, AfterViewInit, OnDestroy {
         this.refreshRecentProgressForMissing();
       }
     });
+    this.reportSub = this.jobsService.watchReports().subscribe({
+      next: event => {
+        this.applyReportEvent(event);
+      }
+    });
   }
 
   setTab(tab: 'dropzone' | 'jobs') {
@@ -402,6 +422,7 @@ export class JobsComponent implements OnInit, AfterViewInit, OnDestroy {
 
   ngOnDestroy() {
     this.jobsSub?.unsubscribe();
+    this.reportSub?.unsubscribe();
     this.topbar.setActions(null);
   }
 
@@ -700,6 +721,14 @@ export class JobsComponent implements OnInit, AfterViewInit, OnDestroy {
       this.jobList = this.sortJobs(jobs);
       this.refreshRecentProgressForMissing();
     });
+    this.jobsService.listReports().subscribe({
+      next: reports => {
+        this.applyReportSummaries(reports);
+      },
+      error: () => {
+        // ignore report list failures
+      }
+    });
   }
 
   getRecentProgress(job: JobSummary) {
@@ -791,12 +820,34 @@ export class JobsComponent implements OnInit, AfterViewInit, OnDestroy {
     });
   }
 
-  downloadReport(jobId: string) {
-    this.openReportModal(jobId);
+  handleReportClick(jobId: string) {
+    const state = this.reportStateByJobId[jobId];
+    if (state?.status === 'done') {
+      this.openReportModal(jobId, state.reportId);
+      return;
+    }
+    if (!state || state.status === 'failed') {
+      this.requestReport(jobId);
+    }
   }
 
-  openReportModal(jobId: string) {
+  reportButtonLabel(jobId: string) {
+    const state = this.reportStateByJobId[jobId];
+    if (!state) return 'Report';
+    if (state.status === 'queued') return 'Queued...';
+    if (state.status === 'running') return state.progress ? `Generating ${state.progress}%` : 'Generating...';
+    if (state.status === 'failed') return 'Retry Report';
+    return 'Download';
+  }
+
+  isReportBusy(jobId: string) {
+    const state = this.reportStateByJobId[jobId];
+    return state?.status === 'queued' || state?.status === 'running';
+  }
+
+  openReportModal(jobId: string, reportId: string) {
     this.reportModalJobId = jobId;
+    this.reportModalReportId = reportId;
     this.reportTypeSelection = 'visual';
     this.reportModalOpen = true;
     this.lastFocusedElement = document.activeElement as HTMLElement | null;
@@ -806,20 +857,23 @@ export class JobsComponent implements OnInit, AfterViewInit, OnDestroy {
   closeReportModal() {
     this.reportModalOpen = false;
     this.reportModalJobId = '';
+    this.reportModalReportId = '';
     if (this.lastFocusedElement) {
       this.lastFocusedElement.focus();
     }
   }
 
   confirmReportModal() {
-    if (!this.reportModalJobId) {
+    if (!this.reportModalReportId) {
       return;
     }
     const jobId = this.reportModalJobId;
+    const reportId = this.reportModalReportId;
     const reportType = this.reportTypeSelection;
     this.reportModalOpen = false;
     this.reportModalJobId = '';
-    this.startReportDownload(jobId, reportType);
+    this.reportModalReportId = '';
+    this.downloadReportById(reportId, jobId, reportType);
   }
 
   @HostListener('document:keydown', ['$event'])
@@ -874,15 +928,32 @@ export class JobsComponent implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
-  private startReportDownload(jobId: string, reportType: 'visual' | 'text' | 'both') {
-    this.generatingReport = { ...this.generatingReport, [jobId]: true };
+  private requestReport(jobId: string) {
     this.message = '';
     this.error = '';
-    this.jobsService.downloadReport(jobId, reportType).subscribe({
+    this.jobsService.createReport(jobId).subscribe({
+      next: (report: ReportSummary) => {
+        this.reportStateByJobId = {
+          ...this.reportStateByJobId,
+          [jobId]: this.toReportState(report)
+        };
+        this.message = 'Report queued.';
+      },
+      error: (err: any) => {
+        this.error = this.formatError(err, 'Failed to queue report.');
+      }
+    });
+  }
+
+  private downloadReportById(reportId: string, jobId: string, reportType: ReportType) {
+    const state = this.reportStateByJobId[jobId];
+    this.message = '';
+    this.error = '';
+    this.jobsService.downloadReport(reportId, reportType).subscribe({
       next: (resp) => {
         const blob = resp.body as Blob;
         const disposition = resp.headers.get('content-disposition');
-        const filename = this.getReportFilename(disposition, reportType, jobId);
+        const filename = this.getReportFilename(disposition, state, jobId, reportType);
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -891,17 +962,20 @@ export class JobsComponent implements OnInit, AfterViewInit, OnDestroy {
         a.click();
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
-        this.generatingReport = { ...this.generatingReport, [jobId]: false };
         this.message = 'Report downloaded successfully.';
       },
       error: (err: any) => {
-        this.generatingReport = { ...this.generatingReport, [jobId]: false };
-        this.error = this.formatError(err, 'Failed to generate report.');
+        this.error = this.formatError(err, 'Failed to download report.');
       }
     });
   }
 
-  private getReportFilename(disposition: string | null, reportType: 'visual' | 'text' | 'both', jobId: string) {
+  private getReportFilename(
+    disposition: string | null,
+    state: ReportState | undefined,
+    jobId: string,
+    reportType: ReportType
+  ) {
     if (disposition) {
       const match = /filename="?([^";]+)"?/i.exec(disposition);
       if (match?.[1]) {
@@ -909,12 +983,61 @@ export class JobsComponent implements OnInit, AfterViewInit, OnDestroy {
       }
     }
     if (reportType === 'text') {
+      if (state?.textFilename) {
+        return state.textFilename;
+      }
       return `text-diff-${jobId}.patch`;
     }
     if (reportType === 'both') {
+      if (state?.bundleFilename) {
+        return state.bundleFilename;
+      }
       return `pdfdiff-reports-${jobId}.zip`;
     }
+    if (state?.visualFilename) {
+      return state.visualFilename;
+    }
     return `diff-report-${jobId}.pdf`;
+  }
+
+  private applyReportEvent(event: ReportEvent) {
+    this.reportStateByJobId = {
+      ...this.reportStateByJobId,
+      [event.source_job_id]: {
+        reportId: event.report_id,
+        status: event.status,
+        progress: event.progress,
+        visualFilename: event.visual_filename ?? null,
+        textFilename: event.text_filename ?? null,
+        bundleFilename: event.bundle_filename ?? null,
+        error: event.error ?? null
+      }
+    };
+  }
+
+  private applyReportSummaries(reports: ReportSummary[]) {
+    const sorted = [...reports].sort(
+      (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+    );
+    const next: Record<string, ReportState> = { ...this.reportStateByJobId };
+    for (const report of sorted) {
+      if (!next[report.source_job_id]) {
+        next[report.source_job_id] = this.toReportState(report);
+      }
+    }
+    this.reportStateByJobId = next;
+  }
+
+  private toReportState(report: ReportSummary): ReportState {
+    return {
+      reportId: report.id,
+      status: report.status,
+      progress: report.progress,
+      visualFilename: report.visual_filename ?? null,
+      textFilename: report.text_filename ?? null,
+      bundleFilename: report.bundle_filename ?? null,
+      error: report.error ?? null
+    };
   }
 
   loadProgress() {
