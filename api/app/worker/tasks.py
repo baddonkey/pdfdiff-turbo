@@ -1,6 +1,8 @@
 import asyncio
+import io
 import shutil
 import uuid
+import zipfile
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Iterable
@@ -15,10 +17,13 @@ from sqlalchemy.pool import NullPool
 
 from app.core.celery_app import celery_app
 from app.core.config import settings
+from app.core.report_events import publish_report_event
 import app.models  # noqa: F401
 from app.features.config.models import AppConfig
 from app.features.jobs.models import Job, JobFile, JobPageResult, JobStatus, PageStatus, TextStatus
-from app.features.jobs.repository import JobFileRepository, JobPageResultRepository
+from app.features.jobs.repository import JobFileRepository, JobPageResultRepository, JobRepository
+from app.features.jobs.service import JobService
+from app.features.reports.models import Report, ReportStatus, ReportType
 
 
 PAGE_BATCH_SIZE = 50
@@ -47,6 +52,11 @@ def extract_text(job_file_id: str) -> None:
 @celery_app.task(name="cleanup_retention")
 def cleanup_retention() -> None:
     asyncio.run(_cleanup_retention_async())
+
+
+@celery_app.task(name="generate_report")
+def generate_report(report_id: str) -> None:
+    asyncio.run(_generate_report_async(report_id))
 
 
 async def _run_job_async(job_id: str) -> None:
@@ -465,3 +475,114 @@ async def _extract_text_from_pdf(pdf_path: Path) -> str:
         response = await client.put(settings.tika_url, content=data, headers=headers)
         response.raise_for_status()
         return response.text
+
+
+async def _emit_report_event(payload: dict) -> None:
+    await asyncio.to_thread(publish_report_event, payload, settings.celery_broker_url)
+
+
+async def _generate_report_async(report_id: str) -> None:
+    try:
+        report_uuid = uuid.UUID(report_id)
+    except ValueError:
+        return
+
+    engine = create_async_engine(settings.database_url, poolclass=NullPool)
+    sessionmaker = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async with sessionmaker() as session:
+        result = await session.execute(
+            select(Report, Job)
+            .join(Job, Report.source_job_id == Job.id)
+            .where(Report.id == report_uuid)
+        )
+        row = result.first()
+        if not row:
+            await engine.dispose()
+            return
+
+        report, job = row
+        report.status = ReportStatus.running
+        report.progress = 0
+        report.error = None
+        await session.commit()
+
+        await _emit_report_event(
+            {
+                "report_id": str(report.id),
+                "source_job_id": str(report.source_job_id),
+                "user_id": str(report.user_id),
+                "status": report.status.value,
+                "progress": report.progress,
+            }
+        )
+
+        job_repo = JobRepository(session)
+        file_repo = JobFileRepository(session)
+        page_repo = JobPageResultRepository(session)
+        service = JobService(session, job_repo, file_repo, page_repo)
+
+        try:
+            visual_bytes = await service.generate_report(job)
+            text_bytes = await service.generate_text_report(job)
+            archive = io.BytesIO()
+            with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as zf:
+                zf.writestr(f"diff-report-{job.id}.pdf", visual_bytes)
+                zf.writestr(f"text-diff-{job.id}.patch", text_bytes)
+            bundle_bytes = archive.getvalue()
+
+            visual_filename = f"diff-report-{job.id}.pdf"
+            text_filename = f"text-diff-{job.id}.patch"
+            bundle_filename = f"pdfdiff-reports-{job.id}.zip"
+
+            reports_dir = Path(settings.data_dir) / "reports" / str(report.id)
+            reports_dir.mkdir(parents=True, exist_ok=True)
+            visual_path = reports_dir / visual_filename
+            text_path = reports_dir / text_filename
+            bundle_path = reports_dir / bundle_filename
+            visual_path.write_bytes(visual_bytes)
+            text_path.write_bytes(text_bytes)
+            bundle_path.write_bytes(bundle_bytes)
+
+            report.report_type = ReportType.both
+            report.output_path = str(bundle_path)
+            report.output_filename = bundle_filename
+            report.visual_path = str(visual_path)
+            report.visual_filename = visual_filename
+            report.text_path = str(text_path)
+            report.text_filename = text_filename
+            report.bundle_path = str(bundle_path)
+            report.bundle_filename = bundle_filename
+            report.status = ReportStatus.done
+            report.progress = 100
+            report.error = None
+            await session.commit()
+
+            await _emit_report_event(
+                {
+                    "report_id": str(report.id),
+                    "source_job_id": str(report.source_job_id),
+                    "user_id": str(report.user_id),
+                    "status": report.status.value,
+                    "progress": report.progress,
+                    "visual_filename": report.visual_filename,
+                    "text_filename": report.text_filename,
+                    "bundle_filename": report.bundle_filename,
+                }
+            )
+        except Exception as exc:  # pragma: no cover - runtime safety
+            report.status = ReportStatus.failed
+            report.progress = 0
+            report.error = str(exc)
+            await session.commit()
+
+            await _emit_report_event(
+                {
+                    "report_id": str(report.id),
+                    "source_job_id": str(report.source_job_id),
+                    "user_id": str(report.user_id),
+                    "status": report.status.value,
+                    "progress": report.progress,
+                    "error": report.error,
+                }
+            )
+    await engine.dispose()
