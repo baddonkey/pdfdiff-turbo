@@ -55,6 +55,28 @@ export interface JobProgress {
   pending: number;
 }
 
+export interface ReportSummary {
+  id: string;
+  source_job_id: string;
+  report_type: 'visual' | 'text' | 'both';
+  status: 'queued' | 'running' | 'done' | 'failed';
+  progress: number;
+  output_filename?: string | null;
+  error?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ReportEvent {
+  report_id: string;
+  source_job_id: string;
+  report_type: 'visual' | 'text' | 'both';
+  status: 'queued' | 'running' | 'done' | 'failed';
+  progress: number;
+  output_filename?: string | null;
+  error?: string | null;
+}
+
 @Injectable({ providedIn: 'root' })
 export class JobsService {
   private baseUrl = '/api';
@@ -253,12 +275,72 @@ export class JobsService {
     });
   }
 
-  downloadReport(jobId: string, reportType: 'visual' | 'text' | 'both') {
+  createReport(jobId: string, reportType: 'visual' | 'text' | 'both') {
+    return this.http.post<ReportSummary>(`${this.baseUrl}/reports`, {
+      source_job_id: jobId,
+      type: reportType
+    });
+  }
+
+  listReports(jobId?: string) {
+    const params = jobId ? `?source_job_id=${encodeURIComponent(jobId)}` : '';
+    return this.http.get<ReportSummary[]>(`${this.baseUrl}/reports${params}`);
+  }
+
+  downloadReport(reportId: string) {
     const timestamp = Date.now();
-    const params = new URLSearchParams({ t: String(timestamp), type: reportType });
-    return this.http.get(`${this.baseUrl}/jobs/${jobId}/report?${params.toString()}`, {
+    const params = new URLSearchParams({ t: String(timestamp) });
+    return this.http.get(`${this.baseUrl}/reports/${reportId}/download?${params.toString()}`, {
       responseType: 'blob',
       observe: 'response'
+    });
+  }
+
+  watchReports(): Observable<ReportEvent> {
+    return new Observable<ReportEvent>(subscriber => {
+      let ws: WebSocket | null = null;
+      let closedByUser = false;
+      let reconnectTimer: number | null = null;
+
+      const connect = () => {
+        const token = localStorage.getItem('access_token');
+        if (!token) {
+          return;
+        }
+        const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+        const wsUrl = `${protocol}://${window.location.host}/api/reports/ws?token=${encodeURIComponent(token)}`;
+        ws = new WebSocket(wsUrl);
+
+        ws.onmessage = event => {
+          try {
+            const data = JSON.parse(event.data) as ReportEvent;
+            if (data && data.report_id) {
+              subscriber.next(data);
+            }
+          } catch {
+            // ignore malformed payloads
+          }
+        };
+
+        ws.onerror = () => {
+          ws?.close();
+        };
+
+        ws.onclose = () => {
+          if (closedByUser) return;
+          reconnectTimer = window.setTimeout(connect, 1500);
+        };
+      };
+
+      connect();
+
+      return () => {
+        closedByUser = true;
+        if (reconnectTimer) {
+          clearTimeout(reconnectTimer);
+        }
+        ws?.close();
+      };
     });
   }
 }
