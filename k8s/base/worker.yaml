@@ -31,7 +31,7 @@ spec:
             - --concurrency=2
             - --prefetch-multiplier=1
             - -Q
-            - jobs,pages
+            - jobs,pages, reports
           volumeMounts:
             - name: pdfdiff-data
               mountPath: /data
