@@ -14,8 +14,9 @@ interface ReportState {
   reportId: string;
   status: ReportStatus;
   progress: number;
-  type: ReportType;
-  outputFilename?: string | null;
+  visualFilename?: string | null;
+  textFilename?: string | null;
+  bundleFilename?: string | null;
   error?: string | null;
 }
 
@@ -207,10 +208,10 @@ interface ReportState {
         (click)="$event.stopPropagation()"
       >
         <div class="modal-header">
-          <h3>Generate report</h3>
+          <h3>Download report</h3>
           <button class="btn secondary" (click)="closeReportModal()">Close</button>
         </div>
-        <div class="modal-sub">Choose what to generate for this job.</div>
+        <div class="modal-sub">Choose what to download for this job.</div>
 
         <label class="modal-option">
           <input
@@ -253,7 +254,7 @@ interface ReportState {
 
         <div class="modal-actions">
           <button class="btn secondary" (click)="closeReportModal()">Cancel</button>
-          <button class="btn" (click)="confirmReportModal()">Generate</button>
+          <button class="btn" (click)="confirmReportModal()">Download</button>
         </div>
       </div>
     </div>
@@ -370,6 +371,7 @@ export class JobsComponent implements OnInit, AfterViewInit, OnDestroy {
   retentionMessage = 'Files are kept for a limited time. After cleanup, comparisons and reports are not available.';
   reportModalOpen = false;
   reportModalJobId = '';
+  reportModalReportId = '';
   reportTypeSelection: ReportType = 'visual';
   private lastFocusedElement: HTMLElement | null = null;
 
@@ -821,11 +823,11 @@ export class JobsComponent implements OnInit, AfterViewInit, OnDestroy {
   handleReportClick(jobId: string) {
     const state = this.reportStateByJobId[jobId];
     if (state?.status === 'done') {
-      this.downloadReportById(state.reportId, jobId, state);
+      this.openReportModal(jobId, state.reportId);
       return;
     }
     if (!state || state.status === 'failed') {
-      this.openReportModal(jobId);
+      this.requestReport(jobId);
     }
   }
 
@@ -843,8 +845,9 @@ export class JobsComponent implements OnInit, AfterViewInit, OnDestroy {
     return state?.status === 'queued' || state?.status === 'running';
   }
 
-  openReportModal(jobId: string) {
+  openReportModal(jobId: string, reportId: string) {
     this.reportModalJobId = jobId;
+    this.reportModalReportId = reportId;
     this.reportTypeSelection = 'visual';
     this.reportModalOpen = true;
     this.lastFocusedElement = document.activeElement as HTMLElement | null;
@@ -854,20 +857,23 @@ export class JobsComponent implements OnInit, AfterViewInit, OnDestroy {
   closeReportModal() {
     this.reportModalOpen = false;
     this.reportModalJobId = '';
+    this.reportModalReportId = '';
     if (this.lastFocusedElement) {
       this.lastFocusedElement.focus();
     }
   }
 
   confirmReportModal() {
-    if (!this.reportModalJobId) {
+    if (!this.reportModalReportId) {
       return;
     }
     const jobId = this.reportModalJobId;
+    const reportId = this.reportModalReportId;
     const reportType = this.reportTypeSelection;
     this.reportModalOpen = false;
     this.reportModalJobId = '';
-    this.requestReport(jobId, reportType);
+    this.reportModalReportId = '';
+    this.downloadReportById(reportId, jobId, reportType);
   }
 
   @HostListener('document:keydown', ['$event'])
@@ -922,10 +928,10 @@ export class JobsComponent implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
-  private requestReport(jobId: string, reportType: ReportType) {
+  private requestReport(jobId: string) {
     this.message = '';
     this.error = '';
-    this.jobsService.createReport(jobId, reportType).subscribe({
+    this.jobsService.createReport(jobId).subscribe({
       next: (report: ReportSummary) => {
         this.reportStateByJobId = {
           ...this.reportStateByJobId,
@@ -939,14 +945,15 @@ export class JobsComponent implements OnInit, AfterViewInit, OnDestroy {
     });
   }
 
-  private downloadReportById(reportId: string, jobId: string, state?: ReportState) {
+  private downloadReportById(reportId: string, jobId: string, reportType: ReportType) {
+    const state = this.reportStateByJobId[jobId];
     this.message = '';
     this.error = '';
-    this.jobsService.downloadReport(reportId).subscribe({
+    this.jobsService.downloadReport(reportId, reportType).subscribe({
       next: (resp) => {
         const blob = resp.body as Blob;
         const disposition = resp.headers.get('content-disposition');
-        const filename = this.getReportFilename(disposition, state, jobId);
+        const filename = this.getReportFilename(disposition, state, jobId, reportType);
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -963,21 +970,32 @@ export class JobsComponent implements OnInit, AfterViewInit, OnDestroy {
     });
   }
 
-  private getReportFilename(disposition: string | null, state: ReportState | undefined, jobId: string) {
+  private getReportFilename(
+    disposition: string | null,
+    state: ReportState | undefined,
+    jobId: string,
+    reportType: ReportType
+  ) {
     if (disposition) {
       const match = /filename="?([^";]+)"?/i.exec(disposition);
       if (match?.[1]) {
         return match[1];
       }
     }
-    if (state?.outputFilename) {
-      return state.outputFilename;
-    }
-    if (state?.type === 'text') {
+    if (reportType === 'text') {
+      if (state?.textFilename) {
+        return state.textFilename;
+      }
       return `text-diff-${jobId}.patch`;
     }
-    if (state?.type === 'both') {
+    if (reportType === 'both') {
+      if (state?.bundleFilename) {
+        return state.bundleFilename;
+      }
       return `pdfdiff-reports-${jobId}.zip`;
+    }
+    if (state?.visualFilename) {
+      return state.visualFilename;
     }
     return `diff-report-${jobId}.pdf`;
   }
@@ -989,8 +1007,9 @@ export class JobsComponent implements OnInit, AfterViewInit, OnDestroy {
         reportId: event.report_id,
         status: event.status,
         progress: event.progress,
-        type: event.report_type,
-        outputFilename: event.output_filename ?? null,
+        visualFilename: event.visual_filename ?? null,
+        textFilename: event.text_filename ?? null,
+        bundleFilename: event.bundle_filename ?? null,
         error: event.error ?? null
       }
     };
@@ -1014,8 +1033,9 @@ export class JobsComponent implements OnInit, AfterViewInit, OnDestroy {
       reportId: report.id,
       status: report.status,
       progress: report.progress,
-      type: report.report_type,
-      outputFilename: report.output_filename ?? null,
+      visualFilename: report.visual_filename ?? null,
+      textFilename: report.text_filename ?? null,
+      bundleFilename: report.bundle_filename ?? null,
       error: report.error ?? null
     };
   }

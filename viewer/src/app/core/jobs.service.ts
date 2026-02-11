@@ -58,10 +58,11 @@ export interface JobProgress {
 export interface ReportSummary {
   id: string;
   source_job_id: string;
-  report_type: 'visual' | 'text' | 'both';
   status: 'queued' | 'running' | 'done' | 'failed';
   progress: number;
-  output_filename?: string | null;
+  visual_filename?: string | null;
+  text_filename?: string | null;
+  bundle_filename?: string | null;
   error?: string | null;
   created_at: string;
   updated_at: string;
@@ -70,10 +71,11 @@ export interface ReportSummary {
 export interface ReportEvent {
   report_id: string;
   source_job_id: string;
-  report_type: 'visual' | 'text' | 'both';
   status: 'queued' | 'running' | 'done' | 'failed';
   progress: number;
-  output_filename?: string | null;
+  visual_filename?: string | null;
+  text_filename?: string | null;
+  bundle_filename?: string | null;
   error?: string | null;
 }
 
@@ -275,10 +277,9 @@ export class JobsService {
     });
   }
 
-  createReport(jobId: string, reportType: 'visual' | 'text' | 'both') {
+  createReport(jobId: string) {
     return this.http.post<ReportSummary>(`${this.baseUrl}/reports`, {
-      source_job_id: jobId,
-      type: reportType
+      source_job_id: jobId
     });
   }
 
@@ -287,9 +288,9 @@ export class JobsService {
     return this.http.get<ReportSummary[]>(`${this.baseUrl}/reports${params}`);
   }
 
-  downloadReport(reportId: string) {
+  downloadReport(reportId: string, reportType: 'visual' | 'text' | 'both') {
     const timestamp = Date.now();
-    const params = new URLSearchParams({ t: String(timestamp) });
+    const params = new URLSearchParams({ t: String(timestamp), type: reportType });
     return this.http.get(`${this.baseUrl}/reports/${reportId}/download?${params.toString()}`, {
       responseType: 'blob',
       observe: 'response'

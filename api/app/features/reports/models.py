@@ -33,6 +33,12 @@ class Report(Base):
     progress: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     output_path: Mapped[str | None] = mapped_column(String(2048), nullable=True)
     output_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    visual_path: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+    visual_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    text_path: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+    text_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    bundle_path: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+    bundle_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
     error: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(

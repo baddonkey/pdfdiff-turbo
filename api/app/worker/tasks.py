@@ -511,7 +511,6 @@ async def _generate_report_async(report_id: str) -> None:
                 "report_id": str(report.id),
                 "source_job_id": str(report.source_job_id),
                 "user_id": str(report.user_id),
-                "report_type": report.report_type.value,
                 "status": report.status.value,
                 "progress": report.progress,
             }
@@ -523,29 +522,36 @@ async def _generate_report_async(report_id: str) -> None:
         service = JobService(session, job_repo, file_repo, page_repo)
 
         try:
-            if report.report_type == ReportType.visual:
-                payload = await service.generate_report(job)
-                filename = f"diff-report-{job.id}.pdf"
-            elif report.report_type == ReportType.text:
-                payload = await service.generate_text_report(job)
-                filename = f"text-diff-{job.id}.patch"
-            else:
-                visual_bytes = await service.generate_report(job)
-                text_bytes = await service.generate_text_report(job)
-                archive = io.BytesIO()
-                with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as zf:
-                    zf.writestr(f"diff-report-{job.id}.pdf", visual_bytes)
-                    zf.writestr(f"text-diff-{job.id}.patch", text_bytes)
-                payload = archive.getvalue()
-                filename = f"pdfdiff-reports-{job.id}.zip"
+            visual_bytes = await service.generate_report(job)
+            text_bytes = await service.generate_text_report(job)
+            archive = io.BytesIO()
+            with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as zf:
+                zf.writestr(f"diff-report-{job.id}.pdf", visual_bytes)
+                zf.writestr(f"text-diff-{job.id}.patch", text_bytes)
+            bundle_bytes = archive.getvalue()
+
+            visual_filename = f"diff-report-{job.id}.pdf"
+            text_filename = f"text-diff-{job.id}.patch"
+            bundle_filename = f"pdfdiff-reports-{job.id}.zip"
 
             reports_dir = Path(settings.data_dir) / "reports" / str(report.id)
             reports_dir.mkdir(parents=True, exist_ok=True)
-            output_path = reports_dir / filename
-            output_path.write_bytes(payload)
+            visual_path = reports_dir / visual_filename
+            text_path = reports_dir / text_filename
+            bundle_path = reports_dir / bundle_filename
+            visual_path.write_bytes(visual_bytes)
+            text_path.write_bytes(text_bytes)
+            bundle_path.write_bytes(bundle_bytes)
 
-            report.output_path = str(output_path)
-            report.output_filename = filename
+            report.report_type = ReportType.both
+            report.output_path = str(bundle_path)
+            report.output_filename = bundle_filename
+            report.visual_path = str(visual_path)
+            report.visual_filename = visual_filename
+            report.text_path = str(text_path)
+            report.text_filename = text_filename
+            report.bundle_path = str(bundle_path)
+            report.bundle_filename = bundle_filename
             report.status = ReportStatus.done
             report.progress = 100
             report.error = None
@@ -556,10 +562,11 @@ async def _generate_report_async(report_id: str) -> None:
                     "report_id": str(report.id),
                     "source_job_id": str(report.source_job_id),
                     "user_id": str(report.user_id),
-                    "report_type": report.report_type.value,
                     "status": report.status.value,
                     "progress": report.progress,
-                    "output_filename": report.output_filename,
+                    "visual_filename": report.visual_filename,
+                    "text_filename": report.text_filename,
+                    "bundle_filename": report.bundle_filename,
                 }
             )
         except Exception as exc:  # pragma: no cover - runtime safety
@@ -573,7 +580,6 @@ async def _generate_report_async(report_id: str) -> None:
                     "report_id": str(report.id),
                     "source_job_id": str(report.source_job_id),
                     "user_id": str(report.user_id),
-                    "report_type": report.report_type.value,
                     "status": report.status.value,
                     "progress": report.progress,
                     "error": report.error,

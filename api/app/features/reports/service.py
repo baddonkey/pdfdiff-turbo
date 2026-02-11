@@ -5,7 +5,7 @@ from app.core.celery_app import celery_app
 from app.features.auth.models import User
 from app.features.jobs.repository import JobRepository
 from app.features.jobs.service import JobService
-from app.features.reports.models import Report, ReportStatus
+from app.features.reports.models import Report, ReportStatus, ReportType
 from app.features.reports.repository import ReportRepository
 from app.features.reports.schemas import ReportCreateCommand, ReportMessage
 
@@ -35,7 +35,7 @@ class ReportService:
         report = Report(
             user_id=user.id,
             source_job_id=job.id,
-            report_type=command.report_type,
+            report_type=ReportType.both,
             status=ReportStatus.queued,
             progress=0,
         )
@@ -65,10 +65,11 @@ class ReportService:
         return ReportMessage(
             id=str(report.id),
             source_job_id=str(report.source_job_id),
-            report_type=report.report_type,
             status=report.status,
             progress=report.progress,
-            output_filename=report.output_filename,
+            visual_filename=report.visual_filename,
+            text_filename=report.text_filename,
+            bundle_filename=report.bundle_filename,
             error=report.error,
             created_at=report.created_at,
             updated_at=report.updated_at,

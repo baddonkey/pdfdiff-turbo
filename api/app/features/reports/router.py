@@ -47,6 +47,7 @@ async def get_report(
 @router.get("/{report_id}/download")
 async def download_report(
     report_id: str,
+    report_type: ReportType = Query(ReportType.visual, alias="type"),
     repo: ReportRepository = Depends(get_report_repository),
     user: User = Depends(get_current_user),
 ) -> FileResponse:
@@ -55,21 +56,26 @@ async def download_report(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found")
     if report.status != ReportStatus.done:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Report is not ready")
-    if not report.output_path:
+    if report_type == ReportType.text:
+        path_value = report.text_path
+        filename = report.text_filename
+        media_type = "text/plain; charset=utf-8"
+    elif report_type == ReportType.both:
+        path_value = report.bundle_path
+        filename = report.bundle_filename
+        media_type = "application/zip"
+    else:
+        path_value = report.visual_path
+        filename = report.visual_filename
+        media_type = "application/pdf"
+
+    if not path_value:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report output missing")
-    path = Path(report.output_path)
+    path = Path(path_value)
     if not path.exists():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report output missing")
 
-    if report.report_type == ReportType.text:
-        media_type = "text/plain; charset=utf-8"
-    elif report.report_type == ReportType.both:
-        media_type = "application/zip"
-    else:
-        media_type = "application/pdf"
-
-    filename = report.output_filename or path.name
-    return FileResponse(path, media_type=media_type, filename=filename)
+    return FileResponse(path, media_type=media_type, filename=filename or path.name)
 
 
 @router.websocket("/ws")

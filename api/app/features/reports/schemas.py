@@ -1,23 +1,21 @@
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel
 
-from app.features.reports.models import ReportStatus, ReportType
+from app.features.reports.models import ReportStatus
 
 
 class ReportCreateCommand(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-
-    source_job_id: str = Field(..., min_length=1)
-    report_type: ReportType = Field(..., alias="type")
+    source_job_id: str
 
 
 class ReportMessage(BaseModel):
     id: str
     source_job_id: str
-    report_type: ReportType
     status: ReportStatus
     progress: int
-    output_filename: str | None = None
+    visual_filename: str | None = None
+    text_filename: str | None = None
+    bundle_filename: str | None = None
     error: str | None = None
     created_at: datetime
     updated_at: datetime
@@ -26,10 +24,11 @@ class ReportMessage(BaseModel):
 class ReportEventMessage(BaseModel):
     report_id: str
     source_job_id: str
-    report_type: ReportType
     status: ReportStatus
     progress: int
-    output_filename: str | None = None
+    visual_filename: str | None = None
+    text_filename: str | None = None
+    bundle_filename: str | None = None
     error: str | None = None
 
 
