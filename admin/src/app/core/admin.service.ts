@@ -20,6 +20,13 @@ export interface AdminUser {
   created_at: string;
 }
 
+export interface AdminUserDeleteResult {
+  status: string;
+  deleted_user_id: string;
+  deleted_jobs: number;
+  deleted_reports: number;
+}
+
 export interface AppConfig {
   allow_registration: boolean;
   enable_dropzone: boolean;
@@ -92,6 +99,10 @@ export class AdminService {
 
   updateUser(userId: string, payload: Partial<AdminUser>) {
     return this.http.patch(`${this.baseUrl}/users/${userId}`, payload);
+  }
+
+  deleteUser(userId: string) {
+    return this.http.delete<AdminUserDeleteResult>(`${this.baseUrl}/users/${userId}`);
   }
 
   getConfig() {

@@ -5,6 +5,7 @@ from app.features.admin.schemas import (
     AdminJobMessage,
     AdminUserMessage,
     AdminUserUpdateCommand,
+    AdminUserDeleteMessage,
     AdminStatsMessage,
 )
 from app.features.admin.service import AdminService
@@ -40,6 +41,15 @@ async def update_user(
     admin: User = Depends(require_admin),
 ) -> AdminUserMessage:
     return await service.update_user(user_id, command)
+
+
+@router.delete("/users/{user_id}", response_model=AdminUserDeleteMessage)
+async def delete_user(
+    user_id: str,
+    service: AdminService = Depends(get_admin_service),
+    admin: User = Depends(require_admin),
+) -> AdminUserDeleteMessage:
+    return await service.delete_user(user_id, str(admin.id))
 
 
 @router.get("/config", response_model=AppConfigMessage)

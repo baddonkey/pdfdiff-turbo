@@ -12,6 +12,7 @@ from app.features.admin.schemas import (
     AdminJobMessage,
     AdminUserMessage,
     AdminUserUpdateCommand,
+    AdminUserDeleteMessage,
     AdminStatsMessage,
     AdminStorageStatsMessage,
     AdminStorageBucketMessage,
@@ -104,6 +105,34 @@ class AdminService:
             max_pages_per_job=user.max_pages_per_job,
             max_jobs_per_user_per_day=user.max_jobs_per_user_per_day,
             created_at=user.created_at,
+        )
+
+    async def delete_user(self, user_id: str, actor_user_id: str) -> AdminUserDeleteMessage:
+        user = await self._repo.get_user(user_id)
+        if not user:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        if str(user.id) == actor_user_id:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Admins cannot delete themselves")
+
+        job_ids = await self._repo.list_job_ids_for_user(user_id)
+        report_ids = await self._repo.list_report_ids_for_user(user_id)
+
+        await self._repo.delete_user(user)
+        await self._session.commit()
+
+        data_dir = Path(settings.data_dir)
+        jobs_dir = data_dir / "jobs"
+        reports_dir = data_dir / "reports"
+        for job_id in job_ids:
+            shutil.rmtree(jobs_dir / job_id, ignore_errors=True)
+        for report_id in report_ids:
+            shutil.rmtree(reports_dir / report_id, ignore_errors=True)
+
+        return AdminUserDeleteMessage(
+            status="ok",
+            deleted_user_id=user_id,
+            deleted_jobs=len(job_ids),
+            deleted_reports=len(report_ids),
         )
 
     async def trigger_cleanup(self) -> dict:

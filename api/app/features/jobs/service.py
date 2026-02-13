@@ -1,3 +1,4 @@
+import gc
 import io
 import re
 import shutil
@@ -625,33 +626,15 @@ class JobService:
                                     f"Page {page.page_index + 1} - Diff Score: {page.diff_score:.2f}",
                                 )
 
+                                img_a = None
+                                img_b = None
                                 try:
                                     import fitz
-                                    import numpy as np
                                     from PIL import ImageDraw
                                     import xml.etree.ElementTree as ET
 
                                     pdf_path_a = job_dir / "setA" / file_item.set_a_path if file_item.set_a_path else None
                                     pdf_path_b = job_dir / "setB" / file_item.set_b_path if file_item.set_b_path else None
-
-                                    img_a = None
-                                    img_b = None
-
-                                    if pdf_path_a and pdf_path_a.exists():
-                                        with fitz.open(pdf_path_a) as doc:
-                                            if page.page_index < doc.page_count:
-                                                pdf_page = doc.load_page(page.page_index)
-                                                mat = fitz.Matrix(2.0, 2.0)
-                                                pix = pdf_page.get_pixmap(matrix=mat, alpha=False)
-                                                img_a = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-
-                                    if pdf_path_b and pdf_path_b.exists():
-                                        with fitz.open(pdf_path_b) as doc:
-                                            if page.page_index < doc.page_count:
-                                                pdf_page = doc.load_page(page.page_index)
-                                                mat = fitz.Matrix(2.0, 2.0)
-                                                pix = pdf_page.get_pixmap(matrix=mat, alpha=False)
-                                                img_b = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
 
                                     circles = []
                                     tree = ET.parse(str(overlay_path))
@@ -662,68 +645,84 @@ class JobService:
                                     svg_width = float(view_box[2])
                                     svg_height = float(view_box[3])
 
-                                    if img_a:
-                                        scale_x = img_a.size[0] / svg_width
-                                        scale_y = img_a.size[1] / svg_height
-                                    elif img_b:
-                                        scale_x = img_b.size[0] / svg_width
-                                        scale_y = img_b.size[1] / svg_height
-                                    else:
-                                        scale_x = scale_y = 1.0
-
                                     for circle in root.findall(".//svg:circle", ns) or root.findall(".//circle"):
                                         circles.append(
                                             {
-                                                "cx": float(circle.get("cx", 0)) * scale_x,
-                                                "cy": float(circle.get("cy", 0)) * scale_y,
-                                                "r": float(circle.get("r", 30)) * scale_x,
+                                                "cx": float(circle.get("cx", 0)),
+                                                "cy": float(circle.get("cy", 0)),
+                                                "r": float(circle.get("r", 30)),
                                             }
                                         )
 
-                                    if img_a:
-                                        draw = ImageDraw.Draw(img_a)
-                                        for circ in circles:
-                                            draw.ellipse(
-                                                [
-                                                    circ["cx"] - circ["r"],
-                                                    circ["cy"] - circ["r"],
-                                                    circ["cx"] + circ["r"],
-                                                    circ["cy"] + circ["r"],
-                                                ],
-                                                outline="red",
-                                                width=8,
-                                            )
-
-                                    if img_b:
-                                        draw = ImageDraw.Draw(img_b)
-                                        for circ in circles:
-                                            draw.ellipse(
-                                                [
-                                                    circ["cx"] - circ["r"],
-                                                    circ["cy"] - circ["r"],
-                                                    circ["cx"] + circ["r"],
-                                                    circ["cy"] + circ["r"],
-                                                ],
-                                                outline="red",
-                                                width=8,
-                                            )
+                                    clip_box = None
+                                    clip_width = svg_width
+                                    clip_height = svg_height
+                                    offset_x = 0.0
+                                    offset_y = 0.0
 
                                     if circles:
                                         padding = 100
-                                        min_x = min(c["cx"] - c["r"] for c in circles) - padding
-                                        min_y = min(c["cy"] - c["r"] for c in circles) - padding
-                                        max_x = max(c["cx"] + c["r"] for c in circles) + padding
-                                        max_y = max(c["cy"] + c["r"] for c in circles) + padding
+                                        min_x = max(0.0, min(c["cx"] - c["r"] for c in circles) - padding)
+                                        min_y = max(0.0, min(c["cy"] - c["r"] for c in circles) - padding)
+                                        max_x = min(svg_width, max(c["cx"] + c["r"] for c in circles) + padding)
+                                        max_y = min(svg_height, max(c["cy"] + c["r"] for c in circles) + padding)
+                                        clip_box = (min_x, min_y, max_x, max_y)
+                                        clip_width = max(1.0, max_x - min_x)
+                                        clip_height = max(1.0, max_y - min_y)
+                                        offset_x = min_x
+                                        offset_y = min_y
 
-                                        if img_a:
-                                            min_x = max(0, min_x)
-                                            min_y = max(0, min_y)
-                                            max_x = min(img_a.size[0], max_x)
-                                            max_y = min(img_a.size[1], max_y)
-                                            img_a = img_a.crop((min_x, min_y, max_x, max_y))
+                                    def render_page_crop(pdf_path: Path | None) -> Image | None:
+                                        if not pdf_path or not pdf_path.exists():
+                                            return None
+                                        with fitz.open(pdf_path) as doc:
+                                            if page.page_index >= doc.page_count:
+                                                return None
+                                            pdf_page = doc.load_page(page.page_index)
+                                            scale = settings.render_dpi / 72.0
+                                            matrix = fitz.Matrix(scale, scale)
+                                            clip_rect = None
+                                            if clip_box:
+                                                points_per_px_x = pdf_page.rect.width / svg_width
+                                                points_per_px_y = pdf_page.rect.height / svg_height
+                                                clip_rect = fitz.Rect(
+                                                    clip_box[0] * points_per_px_x,
+                                                    clip_box[1] * points_per_px_y,
+                                                    clip_box[2] * points_per_px_x,
+                                                    clip_box[3] * points_per_px_y,
+                                                )
+                                            pix = pdf_page.get_pixmap(matrix=matrix, alpha=False, clip=clip_rect)
+                                            try:
+                                                return Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+                                            finally:
+                                                del pix
 
-                                        if img_b:
-                                            img_b = img_b.crop((min_x, min_y, max_x, max_y))
+                                    img_a = render_page_crop(pdf_path_a)
+                                    img_b = render_page_crop(pdf_path_b)
+
+                                    def draw_circles(target: Image | None) -> None:
+                                        if not target or not circles:
+                                            return
+                                        scale_x = target.size[0] / clip_width
+                                        scale_y = target.size[1] / clip_height
+                                        draw = ImageDraw.Draw(target)
+                                        for circ in circles:
+                                            cx = (circ["cx"] - offset_x) * scale_x
+                                            cy = (circ["cy"] - offset_y) * scale_y
+                                            r = circ["r"] * scale_x
+                                            draw.ellipse(
+                                                [
+                                                    cx - r,
+                                                    cy - r,
+                                                    cx + r,
+                                                    cy + r,
+                                                ],
+                                                outline="red",
+                                                width=8,
+                                            )
+
+                                    draw_circles(img_a)
+                                    draw_circles(img_b)
 
                                     if img_a and img_b:
                                         img_a_file = temp_dir / f"page_a_{file_item.id}_{page.page_index}.jpg"
@@ -787,6 +786,10 @@ class JobService:
                                 except Exception as exc:
                                     c.setFont("Helvetica", 10)
                                     c.drawString(0.75 * inch, height - 2 * inch, f"Error: {str(exc)}")
+                                finally:
+                                    img_a = None
+                                    img_b = None
+                                    gc.collect()
 
                                 c.showPage()
 

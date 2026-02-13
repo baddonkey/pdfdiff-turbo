@@ -30,6 +30,13 @@ class AdminUserUpdateCommand(BaseModel):
     max_jobs_per_user_per_day: int | None = None
 
 
+class AdminUserDeleteMessage(BaseModel):
+    status: str
+    deleted_user_id: str
+    deleted_jobs: int
+    deleted_reports: int
+
+
 class AdminStorageBucketMessage(BaseModel):
     name: str
     path: str

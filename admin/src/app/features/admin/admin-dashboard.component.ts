@@ -78,6 +78,8 @@ import { TopbarActionsService } from '../../core/topbar-actions.service';
           <h2 style="margin: 0;">Users</h2>
           <button class="btn secondary" (click)="loadUsers()">Refresh</button>
         </div>
+        <div *ngIf="userMessage" style="margin-top: 12px; color:#166534;">{{ userMessage }}</div>
+        <div *ngIf="userError" style="margin-top: 12px; color:#b91c1c;">{{ userError }}</div>
         <table class="table" *ngIf="users.length">
           <thead>
             <tr>
@@ -110,8 +112,9 @@ import { TopbarActionsService } from '../../core/topbar-actions.service';
               <td><input class="input" type="number" min="1" [(ngModel)]="user.max_upload_mb" /></td>
               <td><input class="input" type="number" min="1" [(ngModel)]="user.max_pages_per_job" /></td>
               <td><input class="input" type="number" min="1" [(ngModel)]="user.max_jobs_per_user_per_day" /></td>
-              <td>
+              <td style="display:flex; gap:8px; align-items:center;">
                 <button class="btn" (click)="saveUser(user)">Save</button>
+                <button class="btn secondary" (click)="deleteUser(user)">Delete</button>
               </td>
             </tr>
           </tbody>
@@ -270,6 +273,8 @@ export class AdminDashboardComponent implements AfterViewInit, OnDestroy {
   stats: AdminStats | null = null;
   statsLoading = false;
   statsError = '';
+  userMessage = '';
+  userError = '';
 
   @ViewChild('topbarActions') topbarActionsTpl?: TemplateRef<any>;
 
@@ -311,10 +316,14 @@ export class AdminDashboardComponent implements AfterViewInit, OnDestroy {
   }
 
   loadUsers() {
+    this.userMessage = '';
+    this.userError = '';
     this.admin.listUsers().subscribe(users => (this.users = users));
   }
 
   saveUser(user: AdminUser) {
+    this.userMessage = '';
+    this.userError = '';
     this.admin.updateUser(user.id, {
       role: user.role,
       is_active: user.is_active,
@@ -322,7 +331,35 @@ export class AdminDashboardComponent implements AfterViewInit, OnDestroy {
       max_upload_mb: user.max_upload_mb,
       max_pages_per_job: user.max_pages_per_job,
       max_jobs_per_user_per_day: user.max_jobs_per_user_per_day
-    }).subscribe();
+    }).subscribe({
+      next: () => {
+        this.userMessage = `Saved ${user.email}.`;
+      },
+      error: err => {
+        this.userError = err?.error?.detail ?? 'Failed to save user.';
+      }
+    });
+  }
+
+  deleteUser(user: AdminUser) {
+    this.userMessage = '';
+    this.userError = '';
+    const confirmed = window.confirm(
+      `Delete user ${user.email}? This will permanently remove all related jobs, reports, and stored files.`
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    this.admin.deleteUser(user.id).subscribe({
+      next: result => {
+        this.userMessage = `Deleted ${user.email} (jobs: ${result.deleted_jobs}, reports: ${result.deleted_reports}).`;
+        this.loadUsers();
+      },
+      error: err => {
+        this.userError = err?.error?.detail ?? 'Failed to delete user.';
+      }
+    });
   }
 
   loadConfig() {
