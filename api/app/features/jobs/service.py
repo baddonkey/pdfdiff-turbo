@@ -494,7 +494,8 @@ class JobService:
         from reportlab.lib.pagesizes import letter
         from reportlab.lib.units import inch
         from reportlab.pdfgen import canvas
-        from PIL import Image
+        from PIL import Image as pil_image
+        from PIL.Image import Image as PILImage
 
         job_dir = Path(settings.data_dir) / "jobs" / str(job.id)
 
@@ -672,7 +673,7 @@ class JobService:
                                         offset_x = min_x
                                         offset_y = min_y
 
-                                    def render_page_crop(pdf_path: Path | None) -> Image | None:
+                                    def render_page_crop(pdf_path: Path | None) -> PILImage | None:
                                         if not pdf_path or not pdf_path.exists():
                                             return None
                                         with fitz.open(pdf_path) as doc:
@@ -693,14 +694,14 @@ class JobService:
                                                 )
                                             pix = pdf_page.get_pixmap(matrix=matrix, alpha=False, clip=clip_rect)
                                             try:
-                                                return Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+                                                return pil_image.frombytes("RGB", [pix.width, pix.height], pix.samples)
                                             finally:
                                                 del pix
 
                                     img_a = render_page_crop(pdf_path_a)
                                     img_b = render_page_crop(pdf_path_b)
 
-                                    def draw_circles(target: Image | None) -> None:
+                                    def draw_circles(target: PILImage | None) -> None:
                                         if not target or not circles:
                                             return
                                         scale_x = target.size[0] / clip_width
