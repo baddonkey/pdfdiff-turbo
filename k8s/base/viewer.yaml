@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: viewer
-          image: localhost/pdfdiff-turbo-viewer:1.1.21
+          image: localhost/pdfdiff-turbo-viewer:1.1.22
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 80
